@@ -422,6 +422,44 @@ class ReviewController {
             });
         }
     }
+
+    // Set daily review goal
+    async setDailyGoal(req, res) {
+        try {
+            const userId = req.user.id;
+            const { goal } = req.body;
+
+            const { error } = await supabase
+                .from('user_settings')
+                .upsert({ user_id: userId, daily_goal: goal, updated_at: new Date() });
+
+            if (error) throw error;
+
+            res.json({ success: true, message: 'Đã cập nhật mục tiêu ngày' });
+        } catch (error) {
+            console.error('Set daily goal error:', error);
+            res.status(500).json({ success: false, error: 'Không thể đặt mục tiêu' });
+        }
+    }
+
+    // Get streak information
+    async getStreakInfo(req, res) {
+        try {
+            const userId = req.user.id;
+            const { data: stats, error } = await supabase
+                .from('user_stats')
+                .select('current_streak, longest_streak')
+                .eq('user_id', userId)
+                .single();
+
+            if (error) throw error;
+
+            res.json({ success: true, data: stats || { current_streak: 0, longest_streak: 0 } });
+        } catch (error) {
+            console.error('Get streak info error:', error);
+            res.status(500).json({ success: false, error: 'Không thể lấy chuỗi ngày' });
+        }
+    }
     
     // Helper methods
     async updateUserStats(userId) {
