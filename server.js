@@ -1,4 +1,3 @@
-// Entry point của application - tương tự như main.py trong FastAPI
 require('dotenv').config();
 const app = require('./src/app');
 
