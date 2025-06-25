@@ -7,7 +7,7 @@ const supabase = require('./database');
 // JWT Strategy - để verify JWT tokens
 passport.use(new JwtStrategy({
     jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-    secretOrKey: process.env.JWT_SECRET
+    secretOrKey: process.env.JWT_SECRET || 'test-secret'
 }, async (payload, done) => {
     try {
         // Tìm user trong database
@@ -33,6 +33,7 @@ passport.use(new JwtStrategy({
 }));
 
 // Google OAuth Strategy
+if (process.env.NODE_ENV !== 'test' && process.env.GOOGLE_CLIENT_ID) {
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
@@ -71,6 +72,7 @@ passport.use(new GoogleStrategy({
         return done(error, false);
     }
 }));
+}
 
 // Serialize/Deserialize user cho session
 passport.serializeUser((user, done) => {
