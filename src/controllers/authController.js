@@ -1,6 +1,6 @@
-// controllers/authController.js
 const jwt = require('jsonwebtoken');
 const User = require('../models/User'); 
+const { generateToken, generateEmailVerificationToken } = require('../utils/jwtHelper');
 
 class AuthController {
     
@@ -30,7 +30,7 @@ class AuthController {
             });
             
             // Generate JWT token
-            const token = this.generateToken({
+            const token = generateToken({
                 userId: newUser.id, 
                 email: newUser.email, 
                 role: newUser.role
@@ -101,7 +101,7 @@ class AuthController {
             await User.updateLastLogin(user.id);
             
             // Generate JWT token
-            const token = this.generateToken({
+            const token = generateToken({
                 userId: user.id,
                 email: user.email,
                 role: user.role
@@ -136,7 +136,7 @@ class AuthController {
             // Passport already handled OAuth, user is in req.user
             const user = req.user;
             
-            const token = this.generateToken({
+            const token = generateToken({
                 userId: user.id,
                 email: user.email,
                 role: user.role
@@ -298,24 +298,6 @@ class AuthController {
                 error: 'Email verification failed' 
             });
         }
-    }
-    
-    // Helper method to generate JWT tokens
-    generateToken(payload) {
-        return jwt.sign(
-            payload,
-            process.env.JWT_SECRET,
-            { expiresIn: process.env.JWT_EXPIRE || '24h' }
-        );
-    }
-    
-    // Helper method to generate email verification token
-    generateEmailVerificationToken(userId) {
-        return jwt.sign(
-            { userId, type: 'email_verification' },
-            process.env.JWT_SECRET,
-            { expiresIn: '7d' }
-        );
     }
 }
 
