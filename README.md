@@ -97,7 +97,7 @@ vocaboost-backend/
 
 ```bash
 # 1. Clone & cài dependencies
-$ git clone https://github.com/<YOUR‑ORG>/vocaboost-backend.git
+$ git clone https://github.com/petiheo/vocaboost-backend.git
 $ cd vocaboost-backend
 $ npm install
 

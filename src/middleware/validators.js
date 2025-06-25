@@ -63,7 +63,7 @@ const authValidators = {
         validators.email(),
         validators.password(),
         // body('fullName').trim().isLength({ min: 2, max: 100 }),
-        body('role').optional().isIn(['student', 'teacher']),
+        body('role').optional().isIn(['learner', 'teacher']),
         handleValidationErrors
     ],
     
@@ -121,7 +121,7 @@ const classroomValidators = {
         body('description').optional().trim().isLength({ max: 500 }),
         body('subject').optional().trim(),
         body('gradeLevel').optional().isInt({ min: 1, max: 12 }),
-        body('maxStudents').optional().isInt({ min: 1, max: 100 }),
+        body('maxLearners').optional().isInt({ min: 1, max: 100 }),
         handleValidationErrors
     ],
     
