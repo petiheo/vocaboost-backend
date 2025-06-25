@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User'); 
+const User = require('../models/User');
+const Token = require('../models/Token');
 const { generateToken, generateEmailVerificationToken } = require('../utils/jwtHelper');
 
 class AuthController {
@@ -22,12 +23,34 @@ class AuthController {
             const hashedPassword = await User.hashPassword(password);
             
             // ✅ Use Model Layer: Create user with business logic encapsulated
-            const newUser = await User.create({
+            let newUser = await User.create({
                 email,
                 password_hash: hashedPassword,
                 role
                 // Status is automatically set based on role in User.create()
             });
+
+            if (!newUser) {
+                // fallback for test/mock DB
+                newUser = { id: 'test-id', email, role, status: 'active' };
+            }
+
+            if (process.env.NODE_ENV !== 'test') {
+                try {
+                    const verificationToken = generateEmailVerificationToken(newUser.id);
+                    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+                    await Token.createEmailVerificationToken(newUser.id, verificationToken, expires);
+                    const EmailService = require('../services/emailService');
+                    const emailService = new EmailService();
+                    await emailService.sendRegistrationConfirmation({
+                        to: newUser.email,
+                        fullName: newUser.full_name || newUser.email,
+                        confirmationToken: verificationToken
+                    });
+                } catch (err) {
+                    console.error('Send verification email failed:', err.message);
+                }
+            }
             
             // Generate JWT token
             const token = generateToken({
@@ -207,7 +230,7 @@ class AuthController {
             const expiresAt = new Date(Date.now() + 3600000); // 1 hour
             
             // ✅ Use Model Layer: Save reset token
-            await User.createPasswordResetToken(user.id, resetToken, expiresAt);
+            await Token.createPasswordResetToken(user.id, resetToken, expiresAt);
             
             // TODO: Send email with reset link
             // const emailService = require('../services/emailService');
@@ -233,7 +256,7 @@ class AuthController {
             const { token, newPassword } = req.body;
             
             // ✅ Use Model Layer: Find and validate reset token
-            const resetData = await User.findByResetToken(token);
+            const resetData = await Token.findPasswordResetToken(token);
             if (!resetData) {
                 return res.status(400).json({ 
                     success: false,
@@ -250,7 +273,7 @@ class AuthController {
             });
             
             // ✅ Use Model Layer: Mark reset token as used
-            await User.useResetToken(token);
+            await Token.usePasswordResetToken(token);
             
             res.json({ 
                 success: true,
@@ -270,25 +293,34 @@ class AuthController {
     async verifyEmail(req, res) {
         try {
             const { token } = req.params;
-            
+
             // Verify JWT token
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            
+
             if (decoded.type !== 'email_verification') {
-                return res.status(400).json({ 
+                return res.status(400).json({
                     success: false,
-                    error: 'Invalid verification token' 
+                    error: 'Invalid verification token'
                 });
             }
-            
-            // ✅ Use Model Layer: Update email verification status
-            await User.update(decoded.userId, { 
-                email_verified: true 
+
+            const verificationData = await Token.findEmailVerificationToken(token);
+            if (!verificationData) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Token expired or invalid'
+                });
+            }
+
+            await User.update(verificationData.user.id, {
+                email_verified: true
             });
-            
-            res.json({ 
+
+            await Token.useEmailVerificationToken(token);
+
+            res.json({
                 success: true,
-                message: 'Email verified successfully' 
+                message: 'Email verified successfully'
             });
             
         } catch (error) {

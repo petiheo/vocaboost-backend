@@ -13,7 +13,7 @@
 * Thuật toán ôn tập SM‑2 & nhiều chế độ học (flashcard, điền khuyết, word‑association…)
 * Tạo ví dụ câu tự động với **Google Generative AI (Gemini)**
 * Giới hạn tốc độ và bộ nhớ đệm bằng Redis (tuỳ chọn)
-* Hệ thống email giao dịch (Nodemailer + Handlebars)
+* Hệ thống email giao dịch (Nodemailer + Handlebars) kèm xác thực email
 * Unit test với Jest & Supertest
 * Logging bằng Winston, bảo mật HTTP headers (Helmet) & rate‑limiting nâng cao
 
@@ -144,6 +144,7 @@ npm test      # Chạy toàn bộ Jest test suites
 | GET         | /api/health        | Kiểm tra trạng thái server     |
 | POST        | /api/auth/register | Đăng ký tài khoản              |
 | POST        | /api/auth/login    | Đăng nhập JWT                  |
+| GET         | /api/auth/verify-email/:token | Xác thực email              |
 | GET         | /api/vocabulary    | Lấy danh sách list công khai   |
 | GET         | /api/review/queue  | Hàng đợi ôn tập của người dùng |
 
