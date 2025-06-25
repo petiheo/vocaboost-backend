@@ -1,13 +1,13 @@
 const router = require('express').Router();
 const passport = require('passport');
 const authController = require('../controllers/authController');
-const validators = require('../middleware/validators');
+const { authValidators } = require('../middleware/validators');
 
 // Register
-router.post('/register', validators.register, authController.register);
+router.post('/register', authValidators.register, authController.register);
 
 // Login
-router.post('/login', validators.login, authController.login);
+router.post('/login', authValidators.login, authController.login);
 
 // Google OAuth
 router.get('/google', 
