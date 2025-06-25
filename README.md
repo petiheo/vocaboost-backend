@@ -149,10 +149,6 @@ npm test      # Chạy toàn bộ Jest test suites
 
 > Xem thêm chi tiết trong từng file route dưới `src/routes/`.
 
-## 🤝 Đóng góp & License
-
-Đóng góp Pull Request / Issue được chào mừng! Phần mềm được phát hành theo giấy phép **ISC**.
-
 ---
 
 © 2025 VocaBoost Team – Happy Learning!
