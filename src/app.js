@@ -54,11 +54,11 @@ app.use('/api/', rateLimiter);
 
 // API Routes - tương tự như router trong FastAPI
 app.use('/api/auth', authRoutes);
-// app.use('/api/users', userRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/vocabulary', vocabularyRoutes);
-// app.use('/api/review', reviewRoutes);
-// app.use('/api/classrooms', classroomRoutes);
-// app.use('/api/admin', adminRoutes);
+app.use('/api/review', reviewRoutes);
+app.use('/api/classrooms', classroomRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
