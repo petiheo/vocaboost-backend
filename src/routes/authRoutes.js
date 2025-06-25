@@ -25,4 +25,7 @@ router.post('/logout', authController.logout);
 // Forgot password
 router.post('/forgot-password', authController.forgotPassword);
 
+// Verify email
+router.get('/verify-email/:token', authController.verifyEmail);
+
 module.exports = router;

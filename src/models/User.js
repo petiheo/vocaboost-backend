@@ -344,48 +344,6 @@ class User {
         return data;
     }
     
-    // Password reset functionality
-    static async createPasswordResetToken(userId, token, expiresAt) {
-        const { data, error } = await supabase
-            .from('password_resets')
-            .insert({
-                user_id: userId,
-                token: token,
-                expires_at: expiresAt,
-                created_at: new Date()
-            })
-            .select()
-            .single();
-            
-        if (error) throw error;
-        return data;
-    }
-    
-    static async findByResetToken(token) {
-        const { data, error } = await supabase
-            .from('password_resets')
-            .select(`
-                *,
-                user:users(*)
-            `)
-            .eq('token', token)
-            .gte('expires_at', new Date().toISOString())
-            .eq('used', false)
-            .single();
-            
-        if (error && error.code !== 'PGRST116') throw error;
-        return data;
-    }
-    
-    static async useResetToken(token) {
-        const { error } = await supabase
-            .from('password_resets')
-            .update({ used: true, used_at: new Date() })
-            .eq('token', token);
-            
-        if (error) throw error;
-        return true;
-    }
     
     // Admin functions
     static async getAllUsers(page = 1, limit = 20, filters = {}) {
