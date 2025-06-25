@@ -1,7 +1,7 @@
 const supabase = require('../config/database');
 const emailService = require('../services/emailService');
 const logger = require('../utils/logger');
-const cacheService = require('../services/cacheService');
+const cacheService = require('../services/CacheService');
 
 class AdminController {
     // USC18: Ban/Unban account

@@ -1,16 +1,25 @@
 // middleware/rateLimiter.js
 const rateLimit = require('express-rate-limit');
-const RedisStore = require('rate-limit-redis');
-const Redis = require('ioredis');
+let RedisStore;
+let Redis;
+try {
+  RedisStore = require('rate-limit-redis');
+  Redis = require('ioredis');
+} catch (err) {
+  RedisStore = null;
+  Redis = null;
+}
 
-// Redis client cho distributed rate limiting
-const redis = new Redis({
-  host: process.env.REDIS_HOST || 'localhost',
-  port: process.env.REDIS_PORT || 6379,
-  password: process.env.REDIS_PASSWORD,
-  retryDelayOnFailover: 100,
-  maxRetriesPerRequest: 3
-});
+// Redis client cho distributed rate limiting (optional)
+const redis = Redis
+  ? new Redis({
+      host: process.env.REDIS_HOST || 'localhost',
+      port: process.env.REDIS_PORT || 6379,
+      password: process.env.REDIS_PASSWORD,
+      retryDelayOnFailover: 100,
+      maxRetriesPerRequest: 3
+    })
+  : null;
 
 // Rate limit configurations cho các endpoint khác nhau
 const rateLimitConfigs = {
@@ -100,10 +109,10 @@ const createRateLimiter = (configName, options = {}) => {
   }
 
   return rateLimit({
-    store: new RedisStore({
+    store: RedisStore && redis ? new RedisStore({
       client: redis,
       prefix: `rl:${configName}:`
-    }),
+    }) : undefined,
     keyGenerator: generateKey,
     ...baseConfig,
     ...options,
@@ -170,10 +179,10 @@ const createProgressiveLimiter = (baseLimiter, escalationFactor = 2) => {
   return [
     baseLimiter,
     rateLimit({
-      store: new RedisStore({
+      store: RedisStore && redis ? new RedisStore({
         client: redis,
         prefix: 'rl:progressive:'
-      }),
+      }) : undefined,
       keyGenerator: generateKey,
       windowMs: 60 * 60 * 1000, // 1 hour window for escalation
       max: (req) => {
@@ -209,6 +218,10 @@ class DistributedRateLimiter {
     const now = Date.now();
     const window = Math.floor(now / windowMs);
     const redisKey = `rate_limit:${this.name}:${key}:${window}`;
+
+    if (!this.redis) {
+      return { allowed: true, count: 0, remaining: max, resetTime: now + windowMs };
+    }
 
     try {
       const current = await this.redis.incr(redisKey);
@@ -273,14 +286,16 @@ const rateLimitMonitor = {
     // Log to console (có thể gửi tới logging service)
     console.warn('Rate limit violation:', violation);
 
-    // Store in Redis for analysis
-    await redis.lpush('rate_limit_violations', JSON.stringify(violation));
-    await redis.ltrim('rate_limit_violations', 0, 999); // Keep last 1000 violations
+    // Store in Redis for analysis if available
+    if (redis) {
+      await redis.lpush('rate_limit_violations', JSON.stringify(violation));
+      await redis.ltrim('rate_limit_violations', 0, 999); // Keep last 1000 violations
+    }
   },
 
   async getViolationStats(timeRange = '1h') {
     try {
-      const violations = await redis.lrange('rate_limit_violations', 0, -1);
+      const violations = redis ? await redis.lrange('rate_limit_violations', 0, -1) : [];
       const parsed = violations.map(v => JSON.parse(v));
       
       const cutoff = new Date();
@@ -314,15 +329,14 @@ const rateLimitMonitor = {
   }
 };
 
-module.exports = {
-  authLimiter,
-  apiLimiter,
-  reviewLimiter,
-  emailLimiter,
-  uploadLimiter,
-  aiLimiter,
-  createRateLimiter,
-  createProgressiveLimiter,
-  DistributedRateLimiter,
-  rateLimitMonitor
-};
+module.exports = apiLimiter;
+module.exports.authLimiter = authLimiter;
+module.exports.apiLimiter = apiLimiter;
+module.exports.reviewLimiter = reviewLimiter;
+module.exports.emailLimiter = emailLimiter;
+module.exports.uploadLimiter = uploadLimiter;
+module.exports.aiLimiter = aiLimiter;
+module.exports.createRateLimiter = createRateLimiter;
+module.exports.createProgressiveLimiter = createProgressiveLimiter;
+module.exports.DistributedRateLimiter = DistributedRateLimiter;
+module.exports.rateLimitMonitor = rateLimitMonitor;
