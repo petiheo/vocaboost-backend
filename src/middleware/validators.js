@@ -62,7 +62,7 @@ const authValidators = {
     register: [
         validators.email(),
         validators.password(),
-        body('fullName').trim().isLength({ min: 2, max: 100 }),
+        // body('fullName').trim().isLength({ min: 2, max: 100 }),
         body('role').optional().isIn(['student', 'teacher']),
         handleValidationErrors
     ],

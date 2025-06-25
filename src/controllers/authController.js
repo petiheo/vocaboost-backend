@@ -27,7 +27,7 @@ class AuthController {
                 .from('users')
                 .insert({
                     email,
-                    password: hashedPassword,
+                    password_hash: hashedPassword,
                     role,
                     status: role === 'teacher' ? 'pending' : 'active'
                 })
@@ -76,7 +76,7 @@ class AuthController {
             }
             
             // Check password
-            const validPassword = await bcrypt.compare(password, user.password);
+            const validPassword = await bcrypt.compare(password, user.password_hash);
             if (!validPassword) {
                 return res.status(401).json({ error: 'Invalid credentials' });
             }
