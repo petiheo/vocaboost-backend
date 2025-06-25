@@ -3,6 +3,31 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 
 class UserController {
+    // Check if email is available for registration
+    async checkEmailAvailability(req, res) {
+        try {
+            const { email } = req.params;
+
+            const { data: user, error } = await supabase
+                .from('users')
+                .select('id')
+                .eq('email', email)
+                .single();
+
+            if (error && error.code !== 'PGRST116') throw error;
+
+            res.json({
+                success: true,
+                data: { available: !user }
+            });
+        } catch (error) {
+            console.error('Check email availability error:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Không thể kiểm tra email'
+            });
+        }
+    }
     // Get user profile
     async getProfile(req, res) {
         try {
@@ -121,6 +146,33 @@ class UserController {
             res.status(500).json({
                 success: false,
                 error: 'Không thể cập nhật cài đặt'
+            });
+        }
+    }
+
+    // Get user settings
+    async getSettings(req, res) {
+        try {
+            const userId = req.user.id;
+
+            const { data: settings, error } = await supabase
+                .from('user_settings')
+                .select('*')
+                .eq('user_id', userId)
+                .single();
+
+            if (error && error.code !== 'PGRST116') throw error;
+
+            res.json({
+                success: true,
+                data: settings || {}
+            });
+
+        } catch (error) {
+            console.error('Get settings error:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Không thể lấy cài đặt'
             });
         }
     }
@@ -338,6 +390,34 @@ class UserController {
             });
         }
     }
+
+    // Delete a notification
+    async deleteNotification(req, res) {
+        try {
+            const userId = req.user.id;
+            const { id } = req.params;
+
+            const { error } = await supabase
+                .from('notifications')
+                .delete()
+                .eq('user_id', userId)
+                .eq('id', id);
+
+            if (error) throw error;
+
+            res.json({
+                success: true,
+                message: 'Đã xóa thông báo'
+            });
+
+        } catch (error) {
+            console.error('Delete notification error:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Không thể xóa thông báo'
+            });
+        }
+    }
     
     // Delete account (soft delete)
     async deleteAccount(req, res) {
@@ -390,6 +470,100 @@ class UserController {
             res.status(500).json({
                 success: false,
                 error: 'Không thể xóa tài khoản'
+            });
+        }
+    }
+
+    // Get learning history of the user
+    async getLearningHistory(req, res) {
+        try {
+            const userId = req.user.id;
+            const { page = 1, limit = 50 } = req.query;
+            const offset = (page - 1) * limit;
+
+            const { data: history, error, count } = await supabase
+                .from('review_history')
+                .select('*, vocabulary:vocabulary(id, word, definition)', { count: 'exact' })
+                .eq('user_id', userId)
+                .order('reviewed_at', { ascending: false })
+                .range(offset, offset + limit - 1);
+
+            if (error) throw error;
+
+            res.json({
+                success: true,
+                data: {
+                    history: history || [],
+                    pagination: {
+                        page: parseInt(page),
+                        limit: parseInt(limit),
+                        total: count,
+                        totalPages: Math.ceil(count / limit)
+                    }
+                }
+            });
+
+        } catch (error) {
+            console.error('Get learning history error:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Không thể lấy lịch sử học tập'
+            });
+        }
+    }
+
+    // Get user's achievements
+    async getAchievements(req, res) {
+        try {
+            const userId = req.user.id;
+
+            const { data: achievements, error } = await supabase
+                .from('user_achievements')
+                .select('*, achievement:achievements(title, description, icon)')
+                .eq('user_id', userId)
+                .order('achieved_at', { ascending: false });
+
+            if (error) throw error;
+
+            res.json({
+                success: true,
+                data: achievements || []
+            });
+
+        } catch (error) {
+            console.error('Get achievements error:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Không thể lấy thành tích'
+            });
+        }
+    }
+
+    // Request a data export for the user
+    async requestDataExport(req, res) {
+        try {
+            const userId = req.user.id;
+
+            const { error } = await supabase
+                .from('data_export_requests')
+                .insert({
+                    user_id: userId,
+                    status: 'pending',
+                    requested_at: new Date()
+                });
+
+            if (error) throw error;
+
+            res.json({
+                success: true,
+                message: 'Yêu cầu xuất dữ liệu đã được ghi nhận'
+            });
+
+        } catch (error) {
+            console.error('Request data export error:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Không thể yêu cầu xuất dữ liệu'
             });
         }
     }

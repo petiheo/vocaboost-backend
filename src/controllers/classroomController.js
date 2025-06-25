@@ -531,6 +531,121 @@ class ClassroomController {
             });
         }
     }
+
+    // Get classes of current user (student)
+    async getMyClasses(req, res) {
+        try {
+            const studentId = req.user.id;
+
+            const { data: classes, error } = await supabase
+                .from('classroom_students')
+                .select('classroom:classrooms(*)')
+                .eq('student_id', studentId)
+                .eq('status', 'active');
+
+            if (error) throw error;
+
+            const result = classes.map(c => c.classroom);
+
+            res.json({ success: true, data: result });
+        } catch (error) {
+            console.error('Get my classes error:', error);
+            res.status(500).json({ success: false, error: 'Không thể lấy lớp học' });
+        }
+    }
+
+    // Get classroom details for member
+    async getClassroomDetails(req, res) {
+        try {
+            const userId = req.user.id;
+            const { classroomId } = req.params;
+
+            const { data: classroom, error: classError } = await supabase
+                .from('classrooms')
+                .select('*')
+                .eq('id', classroomId)
+                .single();
+
+            if (classError || !classroom) {
+                return res.status(404).json({ success: false, error: 'Lớp học không tồn tại' });
+            }
+
+            if (classroom.teacher_id !== userId) {
+                const { data: member } = await supabase
+                    .from('classroom_students')
+                    .select('id')
+                    .eq('classroom_id', classroomId)
+                    .eq('student_id', userId)
+                    .eq('status', 'active')
+                    .single();
+                if (!member) {
+                    return res.status(403).json({ success: false, error: 'Không có quyền truy cập lớp học' });
+                }
+            }
+
+            const { data: students } = await supabase
+                .from('classroom_students')
+                .select('student:users(id, full_name, email)')
+                .eq('classroom_id', classroomId)
+                .eq('status', 'active');
+
+            const { data: assignments } = await supabase
+                .from('assignments')
+                .select('*')
+                .eq('classroom_id', classroomId)
+                .eq('is_active', true);
+
+            res.json({ success: true, data: { classroom, students, assignments } });
+        } catch (error) {
+            console.error('Get classroom details error:', error);
+            res.status(500).json({ success: false, error: 'Không thể lấy thông tin lớp học' });
+        }
+    }
+
+    // Get assignments of a classroom
+    async getAssignments(req, res) {
+        try {
+            const userId = req.user.id;
+            const { classroomId } = req.params;
+
+            const { data: classroom } = await supabase
+                .from('classrooms')
+                .select('teacher_id')
+                .eq('id', classroomId)
+                .single();
+
+            if (!classroom) {
+                return res.status(404).json({ success: false, error: 'Lớp học không tồn tại' });
+            }
+
+            if (classroom.teacher_id !== userId) {
+                const { data: member } = await supabase
+                    .from('classroom_students')
+                    .select('id')
+                    .eq('classroom_id', classroomId)
+                    .eq('student_id', userId)
+                    .eq('status', 'active')
+                    .single();
+                if (!member) {
+                    return res.status(403).json({ success: false, error: 'Không có quyền truy cập lớp học' });
+                }
+            }
+
+            const { data: assignments, error } = await supabase
+                .from('assignments')
+                .select('*')
+                .eq('classroom_id', classroomId)
+                .eq('is_active', true)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+
+            res.json({ success: true, data: assignments });
+        } catch (error) {
+            console.error('Get assignments error:', error);
+            res.status(500).json({ success: false, error: 'Không thể lấy bài tập' });
+        }
+    }
     
     // Helper: Generate unique class code
     async generateUniqueClassCode() {

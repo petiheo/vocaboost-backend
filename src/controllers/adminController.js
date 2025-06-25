@@ -1,6 +1,7 @@
 const supabase = require('../config/database');
 const emailService = require('../services/emailService');
 const logger = require('../utils/logger');
+const cacheService = require('../services/cacheService');
 
 class AdminController {
     // USC18: Ban/Unban account
@@ -602,6 +603,249 @@ class AdminController {
                 }
             });
         }
+    }
+
+    // Export analytics as downloadable JSON
+    async exportAnalytics(req, res) {
+        try {
+            const { period = '30d' } = req.query;
+            const analytics = await this.fetchAnalytics(period);
+
+            res.setHeader('Content-Disposition', 'attachment; filename="analytics.json"');
+            res.json({ success: true, data: analytics });
+        } catch (error) {
+            console.error('Export analytics error:', error);
+            res.status(500).json({ success: false, error: 'Không thể xuất thống kê' });
+        }
+    }
+
+    // List users with pagination and filtering
+    async getUsers(req, res) {
+        try {
+            const { page = 1, limit = 20, search, role, status } = req.query;
+            const offset = (page - 1) * limit;
+
+            let query = supabase
+                .from('users')
+                .select('id, email, full_name, role, status, created_at', { count: 'exact' })
+                .order('created_at', { ascending: false })
+                .range(offset, offset + limit - 1);
+
+            if (search) query = query.ilike('email', `%${search}%`);
+            if (role) query = query.eq('role', role);
+            if (status) query = query.eq('status', status);
+
+            const { data: users, error, count } = await query;
+            if (error) throw error;
+
+            res.json({
+                success: true,
+                data: {
+                    users,
+                    pagination: {
+                        page: parseInt(page),
+                        limit: parseInt(limit),
+                        total: count,
+                        totalPages: Math.ceil(count / limit)
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Get users error:', error);
+            res.status(500).json({ success: false, error: 'Không thể lấy danh sách người dùng' });
+        }
+    }
+
+    // Update user by admin
+    async updateUser(req, res) {
+        try {
+            const { userId } = req.params;
+            const { role, status, fullName } = req.body;
+
+            const updates = {};
+            if (role) updates.role = role;
+            if (status) updates.status = status;
+            if (fullName) updates.full_name = fullName;
+
+            const { data: user, error } = await supabase
+                .from('users')
+                .update(updates)
+                .eq('id', userId)
+                .select('id, email, full_name, role, status')
+                .single();
+
+            if (error) throw error;
+
+            res.json({ success: true, data: user });
+        } catch (error) {
+            console.error('Update user error:', error);
+            res.status(500).json({ success: false, error: 'Không thể cập nhật người dùng' });
+        }
+    }
+
+    // Bulk actions on users
+    async bulkUserAction(req, res) {
+        try {
+            const { userIds = [], action } = req.body;
+            if (userIds.length === 0) {
+                return res.status(400).json({ success: false, error: 'Danh sách người dùng trống' });
+            }
+
+            let query = supabase.from('users');
+            if (action === 'delete') {
+                query = query.delete();
+            } else if (action === 'activate') {
+                query = query.update({ status: 'active' });
+            } else if (action === 'deactivate') {
+                query = query.update({ status: 'inactive' });
+            } else {
+                return res.status(400).json({ success: false, error: 'Hành động không hợp lệ' });
+            }
+
+            const { error } = await query.in('id', userIds);
+            if (error) throw error;
+
+            res.json({ success: true, message: 'Đã thực hiện thao tác' });
+        } catch (error) {
+            console.error('Bulk user action error:', error);
+            res.status(500).json({ success: false, error: 'Không thể thực hiện thao tác' });
+        }
+    }
+
+    // Get vocabulary content for moderation
+    async getVocabularyContent(req, res) {
+        try {
+            const { page = 1, limit = 50, search, listId } = req.query;
+            const offset = (page - 1) * limit;
+
+            let query = supabase
+                .from('vocabulary_items')
+                .select('*, list:vocabulary_lists(name)', { count: 'exact' })
+                .order('created_at', { ascending: false })
+                .range(offset, offset + limit - 1);
+
+            if (search) query = query.ilike('word', `%${search}%`);
+            if (listId) query = query.eq('list_id', listId);
+
+            const { data: items, error, count } = await query;
+            if (error) throw error;
+
+            res.json({
+                success: true,
+                data: {
+                    items,
+                    pagination: {
+                        page: parseInt(page),
+                        limit: parseInt(limit),
+                        total: count,
+                        totalPages: Math.ceil(count / limit)
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Get vocabulary content error:', error);
+            res.status(500).json({ success: false, error: 'Không thể lấy nội dung' });
+        }
+    }
+
+    // Remove vocabulary item
+    async removeVocabulary(req, res) {
+        try {
+            const { id } = req.params;
+            const { error } = await supabase
+                .from('vocabulary_items')
+                .update({ is_active: false })
+                .eq('id', id);
+
+            if (error) throw error;
+            res.json({ success: true, message: 'Đã gỡ từ vựng' });
+        } catch (error) {
+            console.error('Remove vocabulary error:', error);
+            res.status(500).json({ success: false, error: 'Không thể gỡ từ vựng' });
+        }
+    }
+
+    // Send broadcast email to users
+    async sendBroadcastEmail(req, res) {
+        try {
+            const { subject, template, data = {}, filter = {} } = req.body;
+
+            let query = supabase.from('users').select('email, full_name');
+            if (filter.role) query = query.eq('role', filter.role);
+            if (filter.status) query = query.eq('status', filter.status);
+
+            const { data: users, error } = await query;
+            if (error) throw error;
+
+            const recipients = users.map(u => ({ email: u.email, fullName: u.full_name }));
+            await emailService.sendBulkEmail({ recipients, subject, template, data });
+
+            res.json({ success: true, message: `Đã gửi email đến ${recipients.length} người dùng` });
+        } catch (error) {
+            console.error('Send broadcast email error:', error);
+            res.status(500).json({ success: false, error: 'Không thể gửi email' });
+        }
+    }
+
+    // Helper to reuse analytics logic
+    async fetchAnalytics(period) {
+        const endDate = new Date();
+        const startDate = new Date();
+        switch (period) {
+            case '24h': startDate.setDate(startDate.getDate() - 1); break;
+            case '7d': startDate.setDate(startDate.getDate() - 7); break;
+            case '30d': startDate.setDate(startDate.getDate() - 30); break;
+            case '90d': startDate.setDate(startDate.getDate() - 90); break;
+        }
+
+        const { data: userStats } = await supabase
+            .rpc('get_user_statistics', { start_date: startDate.toISOString(), end_date: endDate.toISOString() });
+
+        const { count: totalVocabulary } = await supabase
+            .from('vocabulary')
+            .select('*', { count: 'exact', head: true })
+            .eq('is_active', true);
+
+        const { count: totalLists } = await supabase
+            .from('vocabulary_lists')
+            .select('*', { count: 'exact', head: true });
+
+        const { count: totalClassrooms } = await supabase
+            .from('classrooms')
+            .select('*', { count: 'exact', head: true })
+            .eq('is_active', true);
+
+        const { data: dailyActivity } = await supabase
+            .rpc('get_daily_activity', { start_date: startDate.toISOString(), end_date: endDate.toISOString() });
+
+        const { data: performance } = await supabase
+            .from('user_stats')
+            .select('total_reviews, correct_reviews')
+            .gte('updated_at', startDate.toISOString());
+
+        const totalReviews = performance?.reduce((sum, p) => sum + p.total_reviews, 0) || 0;
+        const correctReviews = performance?.reduce((sum, p) => sum + p.correct_reviews, 0) || 0;
+
+        return {
+            period,
+            users: {
+                total: userStats?.total_users || 0,
+                active: userStats?.active_users || 0,
+                new: userStats?.new_users || 0,
+                byRole: userStats?.users_by_role || {}
+            },
+            content: {
+                totalVocabulary: totalVocabulary || 0,
+                totalLists: totalLists || 0,
+                totalClassrooms: totalClassrooms || 0
+            },
+            activity: {
+                totalReviews,
+                averageAccuracy: totalReviews > 0 ? Math.round((correctReviews / totalReviews) * 100) : 0,
+                dailyActivity: dailyActivity || []
+            },
+            topMetrics: { mostActiveUsers: [], popularVocabularyLists: [], activeClassrooms: [] }
+        };
     }
 }
 
