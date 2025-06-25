@@ -1,18 +1,45 @@
 // services/AIService.js
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+let GoogleGenerativeAI;
+try {
+  ({ GoogleGenerativeAI } = require("@google/generative-ai"));
+} catch (err) {
+  GoogleGenerativeAI = null;
+}
 
 class AIService {
   constructor() {
-    this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    this.model = this.genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
-      generationConfig: {
-        temperature: 0.7,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: 1024,
-      }
-    });
+    if (GoogleGenerativeAI) {
+      this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      this.model = this.genAI.getGenerativeModel({
+        model: "gemini-1.5-flash",
+        generationConfig: {
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 1024,
+        }
+      });
+    } else {
+      this.genAI = null;
+      this.model = null;
+    }
+  }
+
+  async generateExample(word) {
+    if (!this.model) {
+      return `This is an example sentence using the word "${word}".`;
+    }
+
+    try {
+      const prompt = `Provide a simple English sentence that uses the word "${word}".`;
+      const result = await this.model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text().trim();
+      return text.split('\n')[0];
+    } catch (error) {
+      console.error('AI example generation error:', error);
+      return `This is an example sentence using the word "${word}".`;
+    }
   }
 
   // Tạo định nghĩa và ví dụ cho từ vựng mới
@@ -199,4 +226,4 @@ class AIService {
   }
 }
 
-module.exports = AIService;
+module.exports = new AIService();

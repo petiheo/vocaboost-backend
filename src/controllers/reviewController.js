@@ -1,6 +1,6 @@
     const supabase = require('../config/database');
 const spacedRepetition = require('../services/spacedRepetition');
-const cacheService = require('../services/cacheService');
+const cacheService = require('../services/CacheService');
 
 class ReviewController {
     // USC4: Review vocabulary with Spaced Repetition

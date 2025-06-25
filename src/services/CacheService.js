@@ -1,28 +1,54 @@
-const Redis = require('ioredis');
+let Redis;
+try {
+    Redis = require('ioredis');
+} catch (err) {
+    Redis = null;
+}
 
 class CacheService {
     constructor() {
-        this.redis = new Redis({
-            host: process.env.REDIS_HOST || 'localhost',
-            port: process.env.REDIS_PORT || 6379,
-            password: process.env.REDIS_PASSWORD,
-            db: process.env.REDIS_DB || 0,
-            retryStrategy: (times) => {
-                const delay = Math.min(times * 50, 2000);
-                return delay;
-            }
-        });
-        
+        if (Redis) {
+            this.redis = new Redis({
+                host: process.env.REDIS_HOST || 'localhost',
+                port: process.env.REDIS_PORT || 6379,
+                password: process.env.REDIS_PASSWORD,
+                db: process.env.REDIS_DB || 0,
+                retryStrategy: (times) => {
+                    const delay = Math.min(times * 50, 2000);
+                    return delay;
+                }
+            });
+
+            // Handle connection events
+            this.redis.on('connect', () => {
+                console.log('Redis connected successfully');
+            });
+
+            this.redis.on('error', (err) => {
+                console.error('Redis connection error:', err);
+            });
+        } else {
+            // Fallback stub when Redis is unavailable
+            this.redis = {
+                get: async () => null,
+                setex: async () => {},
+                set: async () => {},
+                del: async () => {},
+                exists: async () => 0,
+                expire: async () => 0,
+                keys: async () => [],
+                multi: function () {
+                    return {
+                        incr() { return this; },
+                        expire() { return this; },
+                        exec: async () => [[null, 1]]
+                    };
+                },
+                on: () => {}
+            };
+        }
+
         this.defaultTTL = 300; // 5 minutes
-        
-        // Handle connection events
-        this.redis.on('connect', () => {
-            console.log('Redis connected successfully');
-        });
-        
-        this.redis.on('error', (err) => {
-            console.error('Redis connection error:', err);
-        });
     }
     
     // Basic cache operations

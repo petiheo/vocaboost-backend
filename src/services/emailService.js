@@ -1,20 +1,32 @@
 // services/EmailService.js
-const nodemailer = require('nodemailer');
-const handlebars = require('handlebars');
+let nodemailer;
+let handlebars;
+try {
+  nodemailer = require('nodemailer');
+  handlebars = require('handlebars');
+} catch (err) {
+  nodemailer = null;
+  handlebars = { compile: () => () => '' };
+}
 const fs = require('fs').promises;
 const path = require('path');
 
 class EmailService {
   constructor() {
-    this.transporter = nodemailer.createTransporter({
-      host: process.env.SMTP_HOST,
-      port: process.env.SMTP_PORT,
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-      }
-    });
+    if (nodemailer) {
+      this.transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: process.env.SMTP_PORT,
+        secure: process.env.SMTP_SECURE === 'true',
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS
+        }
+      });
+    } else {
+      // Fallback stub transporter
+      this.transporter = { sendMail: async () => {} };
+    }
     
     this.templates = new Map();
     this.loadTemplates();
