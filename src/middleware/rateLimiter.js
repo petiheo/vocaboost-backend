@@ -3,8 +3,11 @@ const rateLimit = require('express-rate-limit');
 let RedisStore;
 let Redis;
 try {
-  RedisStore = require('rate-limit-redis');
-  Redis = require('ioredis');
+  if (process.env.NODE_ENV !== 'test' && process.env.REDIS_HOST) {
+    const RateLimitRedis = require('rate-limit-redis');
+    RedisStore = RateLimitRedis.RedisStore || RateLimitRedis.default;
+    Redis = require('ioredis');
+  }
 } catch (err) {
   RedisStore = null;
   Redis = null;
@@ -13,7 +16,7 @@ try {
 // Redis client cho distributed rate limiting (optional)
 const redis = Redis
   ? new Redis({
-      host: process.env.REDIS_HOST || 'localhost',
+      host: process.env.REDIS_HOST,
       port: process.env.REDIS_PORT || 6379,
       password: process.env.REDIS_PASSWORD,
       retryDelayOnFailover: 100,

@@ -1,6 +1,8 @@
 let Redis;
 try {
-    Redis = require('ioredis');
+    if (process.env.NODE_ENV !== 'test' && process.env.REDIS_HOST) {
+        Redis = require('ioredis');
+    }
 } catch (err) {
     Redis = null;
 }
@@ -9,7 +11,7 @@ class CacheService {
     constructor() {
         if (Redis) {
             this.redis = new Redis({
-                host: process.env.REDIS_HOST || 'localhost',
+                host: process.env.REDIS_HOST,
                 port: process.env.REDIS_PORT || 6379,
                 password: process.env.REDIS_PASSWORD,
                 db: process.env.REDIS_DB || 0,
