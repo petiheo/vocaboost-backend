@@ -1,22 +1,17 @@
 const router = require('express').Router();
 const classroomController = require('../controllers/classroomController');
-const { authenticateJWT, requireRole } = require('../middleware/authMiddleware');
+const { requireRole, authenticateJWT, requireClassroomAccess } = require('../middleware/auth');
+const { classroomValidators, handleValidationErrors } = require('../middleware/validation/validators');
 const { body, param } = require('express-validator');
-const { handleValidationErrors } = require('../middleware/validators');
 
 // Apply authentication to all routes
 router.use(authenticateJWT);
 
 // Teacher routes
 router.post('/', 
-    requireRole('teacher'),
-    [
-        body('name').notEmpty().trim(),
-        body('gradeLevel').optional().isInt({ min: 1, max: 12 }),
-        body('maxStudents').optional().isInt({ min: 1, max: 100 }),
-        handleValidationErrors
-    ],
-    classroomController.createClassroom
+  requireRole('teacher'),
+  classroomValidators.create,
+  classroomController.createClassroom
 );
 
 router.get('/my-classrooms', 
@@ -80,11 +75,8 @@ router.get('/my-classes',
 );
 
 router.get('/:classroomId',
-    [
-        param('classroomId').isUUID(),
-        handleValidationErrors
-    ],
-    classroomController.getClassroomDetails
+  requireClassroomAccess,
+  classroomController.getMyClassrooms
 );
 
 // Shared routes

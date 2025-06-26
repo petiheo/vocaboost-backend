@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const vocabularyController = require('../controllers/vocabularyController');
-const { authenticateJWT, optionalAuth } = require('../middleware/authMiddleware');
-const { vocabularyValidators } = require('../middleware/validators');
+const { authenticateJWT, optionalAuth } = require('../middleware/auth');
+const { vocabularyValidators } = require('../middleware/validation/validators');
 
 // Public routes (optional auth for personalized data)
 router.get('/', optionalAuth, vocabularyController.getLists);

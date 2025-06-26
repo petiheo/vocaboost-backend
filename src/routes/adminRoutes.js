@@ -1,12 +1,14 @@
 const router = require('express').Router();
 const adminController = require('../controllers/adminController');
-const { authenticateJWT, requireRole } = require('../middleware/authMiddleware');
-const { apiLimiter } = require('../middleware/rateLimiter');
+const { authenticateJWT, requireRole } = require('../middleware/auth');
+const rateLimiters = require('../middleware/protection/rateLimiter');
+const { auditLogger } = require('../middleware/core/logging');
 
 // Apply authentication and admin role to all routes
 router.use(authenticateJWT);
 router.use(requireRole('admin'));
-router.use(apiLimiter);
+router.use(rateLimiters.admin);
+router.use(auditLogger);
 
 // USC18: Ban/Unban accounts
 router.post('/users/ban', adminController.banAccount);

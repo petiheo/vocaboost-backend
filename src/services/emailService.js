@@ -47,6 +47,7 @@ class EmailService {
           this.templates.set(templateName, handlebars.compile(templateContent));
         }
       }
+      console.info('Load templates successfully',);
     } catch (error) {
       console.error('Failed to load email templates:', error);
     }
@@ -55,6 +56,7 @@ class EmailService {
   // Gửi email xác nhận đăng ký
   async sendRegistrationConfirmation({ to, fullName, confirmationToken }) {
     try {
+      await this.loadTemplates();
       const template = this.templates.get('registration-confirmation');
       if (!template) throw new Error('Template not found');
 

@@ -1,9 +1,5 @@
 const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
 const passport = require('passport');
-const session = require('express-session');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -14,8 +10,14 @@ const classroomRoutes = require('./routes/classroomRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 
 // Import middleware
-const errorHandler = require('./middleware/errorHandler');
-const rateLimiter = require('./middleware/rateLimiter');
+const { securityMiddleware } = require('./middleware/core/security');
+const { requestLogger, auditLogger } = require('./middleware/core/logging');
+const { parsingMiddleware } = require('./middleware/core/parsing');
+const { sessionMiddleware } = require('./middleware/core/session');
+const { requestId, requestContext } = require('./middleware/monitoring/requestId');
+const { performanceMonitor } = require('./middleware/monitoring/performance');
+const { errorHandler, notFoundHandler } = require('./middleware/monitoring/errorHandler');
+const rateLimiters = require('./middleware/protection/rateLimiter');
 
 // Import passport config
 require('./config/auth');
@@ -24,33 +26,19 @@ require('./config/auth');
 const app = express();
 
 // Basic middleware - tương tự như FastAPI middleware
-app.use(helmet()); // Security headers
-app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3001',
-    credentials: true
-}));
-app.use(morgan('dev')); // Logging
-app.use(express.json()); // Parse JSON body
-app.use(express.urlencoded({ extended: true }));
-
-// Session middleware for OAuth
-app.use(session({
-    secret: process.env.SESSION_SECRET || 'vocaboost-secret',
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-        secure: process.env.NODE_ENV === 'production',
-        httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
-    }
-}));
+app.use(requestId);
+app.use(requestContext);
+app.use(performanceMonitor);
+app.use(...securityMiddleware());
+app.use(requestLogger);
+app.use(...parsingMiddleware());
+app.use(sessionMiddleware);
+app.use('/api/', rateLimiters.global);
+app.use('/api/', auditLogger);
 
 // Initialize Passport
 app.use(passport.initialize());
 app.use(passport.session());
-
-// Rate limiting
-app.use('/api/', rateLimiter);
 
 // API Routes - tương tự như router trong FastAPI
 app.use('/api/auth', authRoutes);
@@ -66,9 +54,8 @@ app.get('/health', (req, res) => {
 });
 
 // 404 handler
-app.use((req, res) => {
-    res.status(404).json({ error: 'Route not found' });
-});
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 // Error handling middleware - phải đặt cuối cùng
 app.use(errorHandler);

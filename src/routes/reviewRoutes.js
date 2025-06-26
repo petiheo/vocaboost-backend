@@ -1,9 +1,10 @@
 const router = require('express').Router();
 const reviewController = require('../controllers/reviewController');
-const { authenticateJWT } = require('../middleware/authMiddleware');
-const { reviewLimiter } = require('../middleware/rateLimiter');
+const { authenticateJWT } = require('../middleware/auth');
+const rateLimiters = require('../middleware/protection/rateLimiter');
+const { reviewValidators } = require('../middleware/validation/validators');
 const { body, query } = require('express-validator');
-const { handleValidationErrors } = require('../middleware/validators');
+const { handleValidationErrors } = require('../middleware/validation/validators');
 
 // Apply authentication to all routes
 router.use(authenticateJWT);
@@ -19,15 +20,9 @@ router.get('/queue',
 
 // Submit review result
 router.post('/submit',
-    reviewLimiter,
-    [
-        body('vocabularyId').isUUID(),
-        body('performance').isInt({ min: 0, max: 3 }),
-        body('responseTime').optional().isInt({ min: 0 }),
-        body('isNew').optional().isBoolean(),
-        handleValidationErrors
-    ],
-    reviewController.submitReview
+  rateLimiters.review,
+  reviewValidators.submitReview,
+  reviewController.submitReview
 );
 
 // USC5: Flashcard session

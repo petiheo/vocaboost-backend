@@ -1,8 +1,8 @@
 const router = require('express').Router();
 const userController = require('../controllers/userController');
-const { authenticateJWT, optionalAuth } = require('../middleware/authMiddleware');
+const { authenticateJWT } = require('../middleware/auth');
 const { body } = require('express-validator');
-const { handleValidationErrors } = require('../middleware/validators');
+const { handleValidationErrors } = require('../middleware/validation/validators');
 
 // Public routes
 router.get('/check-email/:email', userController.checkEmailAvailability);

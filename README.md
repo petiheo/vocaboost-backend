@@ -31,62 +31,111 @@
 
 ## 3. Cấu trúc thư mục
 
-```text
+``` text
 vocaboost-backend/
 ├── src/
-│   ├── app.js
-│   ├── config/
-│   │   ├── database.js      # Kết nối Supabase
-│   │   ├── auth.js          # Config JWT & OAuth
-│   │   └── constants.js     # Các hằng số
-│   ├── controllers/
-│   │   ├── adminController.js
-│   │   ├── authController.js
-│   │   ├── classroomController.js
-│   │   ├── reviewController.js
-│   │   ├── userController.js
-│   │   └── vocabularyController.js
-│   ├── middleware/
-│   │   ├── authMiddleware.js
-│   │   ├── errorHandler.js
-│   │   ├── rateLimiter.js
-│   │   └── validators.js
-│   ├── models/
-│   │   ├── Classroom.js
-│   │   ├── LearningProgress.js
-│   │   ├── User.js
-│   │   ├── VocabularyItem.js
-│   │   └── VocabularyList.js
-│   ├── routes/
-│   │   ├── adminRoutes.js
-│   │   ├── authRoutes.js
-│   │   ├── classroomRoutes.js
-│   │   ├── reviewRoutes.js
-│   │   ├── userRoutes.js
-│   │   ├── vocabularyRoutes.js
-│   │   └── index.js
-│   ├── services/
-│   │   ├── aiService.js
-│   │   ├── CacheService.js
-│   │   ├── emailService.js
-│   │   └── spacedRepetition.js
-│   ├── templates/
-│   │   └── emails/
-│   │       ├── password-reset.hbs
-│   │       └── registration-confirmation.hbs
-│   └── utils/
-│   │   ├── helpers.js
-│   │   └── logger.js
-│   ├── tests/
-│   └── auth.test.js
-├── .env.example
-├── .env
-├── .gitignore
-├── Dockerfile
-├── docker-compose.yml
-├── package.json
-├── package-lock.json
-└── server.js                    # Entry point
+│   ├── app.js                       # Main Express application setup
+│   ├── server.js                    # Entry point - khởi động server
+│   │
+│   ├── config/                      
+│   │   ├── database.js              # Kết nối Supabase
+│   │   ├── auth.js                  # Passport JWT & Google OAuth config
+│   │   ├── redis.js                 # Redis connection với fallback
+│   │   └── constants.js             # Các hằng số ứng dụng
+│   │
+│   ├── middleware/                 
+│   │   ├── core/                    # Middleware cốt lõi, dùng globally
+│   │   │   ├── security.js          # Security headers, CORS, helmet
+│   │   │   ├── logging.js           # Request logging, audit trails
+│   │   │   ├── parsing.js           # Body parsing, compression, timeout
+│   │   │   └── session.js           # Session middleware cho OAuth
+│   │   │
+│   │   ├── auth/                    # Authentication & Authorization
+│   │   │   ├── authenticate.js      # JWT authentication strategies
+│   │   │   ├── authorize.js         # Role-based access control
+│   │   │   └── index.js             # Export tất cả auth middleware
+│   │   │
+│   │   ├── protection/              
+│   │   │   └── rateLimiter.js       # Redis-based distributed rate limiting
+│   │   │
+│   │   ├── validation/              
+│   │   │   └── validators.js        # Common validation rules & handlers
+│   │   │
+│   │   ├── monitoring/              # Monitoring & debugging
+│   │   │   ├── requestId.js         # Request tracking với unique ID
+│   │   │   ├── performance.js       # Performance monitoring
+│   │   └   └── errorHandler.js      # Enhanced error handling & reporting
+│   │
+│   ├── controllers/                 # Request handlers
+│   │   ├── adminController.js       # Admin panel operations
+│   │   ├── authController.js        # Authentication endpoints
+│   │   ├── classroomController.js   # Classroom management
+│   │   ├── reviewController.js      # Learning review sessions
+│   │   ├── userController.js        # User profile & settings
+│   │   └── vocabularyController.js  # Vocabulary lists & items
+│   │
+│   ├── models/                      # Data access layer (Supabase ORM)
+│   │   ├── User.js                  # User model với authentication
+│   │   ├── Token.js                 # Password reset & email verification
+│   │   ├── VocabularyList.js        # Vocabulary list management
+│   │   ├── VocabularyItem.js        # Individual vocabulary items
+│   │   ├── LearningProgress.js      # Spaced repetition progress
+│   │   ├── Classroom.js             # Classroom & teacher functionality
+│   │
+│   ├── routes/                      # API route definitions
+│   │   ├── authRoutes.js            # /api/auth/* - Authentication
+│   │   ├── userRoutes.js            # /api/users/* - User management
+│   │   ├── vocabularyRoutes.js      # /api/vocabulary/* - Vocabulary
+│   │   ├── reviewRoutes.js          # /api/review/* - Learning sessions
+│   │   ├── classroomRoutes.js       # /api/classrooms/* - Classroom
+│   │   ├── adminRoutes.js           # /api/admin/* - Admin panel
+│   │   └── index.js                 # Route composition
+│   │
+│   ├── services/                    # Business logic layer
+│   │   ├── aiService.js             # Google Generative AI integration
+│   │   ├── emailService.js          # SMTP email sending
+│   │   ├── cacheService.js          # Redis caching wrapper
+│   │   └── spacedRepetition.js      # SM-2 algorithm implementation
+│   │
+│   ├── utils/                       # Helper functions & utilities
+│   │   ├── jwtHelpers.js            # Generate token functions
+│   │   ├── logger.js                # Winston logging configuration
+│   │
+│   ├── templates/                   # Email & document templates
+│   │   └── emails/                  # Handlebars email templates
+│   │       ├── registration-confirmation.hbs          
+│   │       └── password-reset.hbs   
+│   │
+│   └── tests/                       
+│       ├── auth.test.js         # Authentication flow tests
+│       └── redis.test.js        # Redis integration tests
+│
+├── .env                             # Environment variables (gitignored)
+├── .env.example                     # Environment template
+├── .gitignore                       # Git ignore rules
+├── package.json                     # Dependencies & scripts
+├── package-lock.json                # Dependency lock file
+├── README.md                        
+│
+├── docker/                          # Docker configuration
+│   ├── Dockerfile.dev               # Development environment
+│   └── docker-compose.yml           # Full stack với Redis & DB
+│
+├── docs/                            # Documentation
+│   ├── API.md                       # API documentation
+│   ├── DEPLOYMENT.md                # Deployment guide
+│   ├── MIDDLEWARE.md                # Middleware architecture
+│   └── REDIS.md                     # Redis setup & usage
+│
+├── scripts/                         # Utility scripts
+│   ├── migrate.js                   # Database migration runner
+│   ├── seed.js                      # Database seeding
+│   └── health-check.js              # Health check script
+│
+└── logs/                            # Application logs (gitignored)
+    ├── error.log                    # Error logs
+    ├── combined.log                 # All logs
+    └── access.log                   # Request access logs
 ```
 
 > **Mô hình thư mục chi tiết**: gốc dự án chứa cấu hình container hoá (Dockerfile, docker-compose.yml) và file môi trường; mã nguồn backend nằm trong `src/`, tách riêng các lớp *config*, *controllers*, *middleware*, *models*, *services*, *routes* & *templates*. Unit tests được đặt trong `tests/`.

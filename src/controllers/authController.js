@@ -9,8 +9,6 @@ class AuthController {
     async register(req, res) {
         try {
             const { email, password, role = 'learner' } = req.body;
-            
-            // ✅ Use Model Layer: Check if email already exists
             const existingUser = await User.findByEmail(email);
             if (existingUser) {
                 return res.status(400).json({ 
@@ -19,10 +17,7 @@ class AuthController {
                 });
             }
             
-            // ✅ Use Model Layer: Hash password via model
             const hashedPassword = await User.hashPassword(password);
-            
-            // ✅ Use Model Layer: Create user with business logic encapsulated
             let newUser = await User.create({
                 email,
                 password_hash: hashedPassword,
