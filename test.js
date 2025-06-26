@@ -1,6 +1,8 @@
+// models/Classroom.js
 const supabase = require('../config/database');
 
 class Classroom {
+    // Existing methods...
     static async create(classroomData) {
         const { data, error } = await supabase
             .from('classrooms')
@@ -18,8 +20,8 @@ class Classroom {
             .select(`
                 *,
                 teacher:users!teacher_id(full_name, email),
-                learners:classroom_learners(
-                    learner:users!learner_id(id, full_name, email)
+                students:classroom_students(
+                    student:users!student_id(id, full_name, email)
                 )
             `)
             .eq('id', id)
@@ -34,7 +36,7 @@ class Classroom {
             .from('classrooms')
             .select(`
                 *,
-                learner_count:classroom_learners(count)
+                student_count:classroom_students(count)
             `)
             .eq('teacher_id', teacherId)
             .eq('is_active', true);
@@ -43,16 +45,16 @@ class Classroom {
         return data;
     }
     
-    static async findByLearner(learnerId) {
+    static async findByStudent(studentId) {
         const { data, error } = await supabase
-            .from('classroom_learners')
+            .from('classroom_students')
             .select(`
                 classroom:classrooms(
                     *,
                     teacher:users!teacher_id(full_name)
                 )
             `)
-            .eq('learner_id', learnerId)
+            .eq('student_id', studentId)
             .eq('status', 'active');
             
         if (error) throw error;
@@ -83,12 +85,12 @@ class Classroom {
         return data;
     }
     
-    static async addLearner(classroomId, learnerId) {
+    static async addStudent(classroomId, studentId) {
         const { data, error } = await supabase
-            .from('classroom_learners')
+            .from('classroom_students')
             .insert({
                 classroom_id: classroomId,
-                learner_id: learnerId,
+                student_id: studentId,
                 status: 'active'
             })
             .select()
@@ -98,20 +100,27 @@ class Classroom {
         return data;
     }
     
-    static async removeLearner(classroomId, learnerId) {
+    static async removeStudent(classroomId, studentId) {
         const { error } = await supabase
-            .from('classroom_learners')
+            .from('classroom_students')
             .update({
                 status: 'removed',
                 left_at: new Date()
             })
             .eq('classroom_id', classroomId)
-            .eq('learner_id', learnerId);
+            .eq('student_id', studentId);
             
         if (error) throw error;
         return true;
     }
 
+    // NEW METHODS FOR ACCESS CONTROL
+
+    /**
+     * Check if a classroom exists
+     * @param {string} classroomId 
+     * @returns {boolean}
+     */
     static async exists(classroomId) {
         try {
             const { data, error } = await supabase
@@ -127,6 +136,12 @@ class Classroom {
         }
     }
 
+    /**
+     * Check if user is teacher of classroom
+     * @param {string} classroomId 
+     * @param {string} userId 
+     * @returns {boolean}
+     */
     static async isTeacher(classroomId, userId) {
         try {
             const { data, error } = await supabase
@@ -143,23 +158,36 @@ class Classroom {
         }
     }
 
-    static async isActiveLearner(classroomId, userId) {
+    /**
+     * Check if user is active student in classroom
+     * @param {string} classroomId 
+     * @param {string} userId 
+     * @returns {boolean}
+     */
+    static async isActiveStudent(classroomId, userId) {
         try {
             const { data, error } = await supabase
-                .from('classroom_learners')
+                .from('classroom_students')
                 .select('id')
                 .eq('classroom_id', classroomId)
-                .eq('learner_id', userId)
+                .eq('student_id', userId)
                 .eq('status', 'active')
                 .single();
             
             return !error && data !== null;
         } catch (error) {
-            console.error('Check learner error:', error);
+            console.error('Check student error:', error);
             return false;
         }
     }
 
+    /**
+     * Check if user has any access to classroom
+     * @param {string} userId - User ID to check
+     * @param {string} classroomId - Classroom ID to check
+     * @param {string} userRole - User's system role (for admin check)
+     * @returns {Object} { hasAccess: boolean, accessType: 'admin'|'teacher'|'student'|null, exists: boolean }
+     */
     static async checkUserAccess(userId, classroomId, userRole) {
         try {
             // Admin always has access
@@ -196,12 +224,12 @@ class Classroom {
                 };
             }
 
-            // Check if user is an active learner
-            const isLearner = await this.isActiveLearner(classroomId, userId);
-            if (isLearner) {
+            // Check if user is an active student
+            const isStudent = await this.isActiveStudent(classroomId, userId);
+            if (isStudent) {
                 return { 
                     hasAccess: true, 
-                    accessType: 'learner',
+                    accessType: 'student',
                     exists: true 
                 };
             }
@@ -218,13 +246,19 @@ class Classroom {
         }
     }
 
+    /**
+     * Get user's role in a specific classroom
+     * @param {string} userId 
+     * @param {string} classroomId 
+     * @returns {string|null} 'teacher', 'student', or null
+     */
     static async getUserClassroomRole(userId, classroomId) {
         try {
             const isTeacher = await this.isTeacher(classroomId, userId);
             if (isTeacher) return 'teacher';
 
-            const isLearner = await this.isActiveLearner(classroomId, userId);
-            if (isLearner) return 'learner';
+            const isStudent = await this.isActiveStudent(classroomId, userId);
+            if (isStudent) return 'student';
 
             return null;
         } catch (error) {
@@ -233,6 +267,12 @@ class Classroom {
         }
     }
 
+    /**
+     * Get classroom with access info for a specific user
+     * @param {string} classroomId 
+     * @param {string} userId 
+     * @returns {Object|null} Classroom with user's access info
+     */
     static async findByIdWithAccess(classroomId, userId) {
         try {
             const classroom = await this.findById(classroomId);
@@ -245,7 +285,7 @@ class Classroom {
                 userAccess: {
                     role: userRole,
                     isTeacher: userRole === 'teacher',
-                    isLearner: userRole === 'learner',
+                    isStudent: userRole === 'student',
                     canEdit: userRole === 'teacher',
                     canViewAnalytics: userRole === 'teacher'
                 }

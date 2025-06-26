@@ -1,11 +1,17 @@
+const Classroom = require('../../models/Classroom');
+
 const requireRole = (...roles) => {
   return (req, res, next) => {
     if (!req.user) {
-      return res.status(401).json({ error: 'Authentication required' });
+      return res.status(401).json({ 
+        success: false,
+        error: 'Authentication required' 
+      });
     }
     
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({ 
+        success: false,
         error: 'Forbidden', 
         message: 'Insufficient permissions' 
       });
@@ -25,6 +31,7 @@ const requireOwnership = (resourceKey = 'userId') => {
     
     if (req.user.id !== resourceUserId) {
       return res.status(403).json({ 
+        success: false,
         error: 'Forbidden', 
         message: 'You can only access your own resources' 
       });
@@ -37,60 +44,119 @@ const requireOwnership = (resourceKey = 'userId') => {
 const requireClassroomAccess = async (req, res, next) => {
   try {
     const userId = req.user.id;
+    const userRole = req.user.role;
     const { classroomId } = req.params;
 
-    // Kiểm tra xem user có quyền truy cập classroom không
-    // 1. User là teacher của classroom
-    // 2. User là student được join vào classroom
-    
-    const { data: classroom } = await supabase
-      .from('classrooms')
-      .select('teacher_id')
-      .eq('id', classroomId)
-      .single();
+    // Validate classroomId
+    if (!classroomId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Classroom ID is required'
+      });
+    }
 
-    if (!classroom) {
+    // Use Classroom model to check access
+    const accessInfo = await Classroom.checkUserAccess(userId, classroomId, userRole);
+
+    // Handle classroom not found
+    if (!accessInfo.exists) {
       return res.status(404).json({ 
         success: false, 
         error: 'Classroom not found' 
       });
     }
 
-    // Nếu user là teacher
-    if (classroom.teacher_id === userId) {
-      return next();
+    // Handle no access
+    if (!accessInfo.hasAccess) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Access denied',
+        message: 'You do not have permission to access this classroom'
+      });
     }
 
-    // Kiểm tra xem user có phải student của classroom không
-    const { data: student } = await supabase
-      .from('classroom_students')
-      .select('id')
-      .eq('classroom_id', classroomId)
-      .eq('student_id', userId)
-      .eq('status', 'active')
-      .single();
+    // Attach access info to request for use in controllers
+    req.classroomAccess = {
+      type: accessInfo.accessType,
+      isTeacher: accessInfo.accessType === 'teacher',
+      isLearner: accessInfo.accessType === 'learner',
+      isAdmin: accessInfo.accessType === 'admin'
+    };
 
-    if (student) {
-      return next();
-    }
-
-    // Admin có thể truy cập tất cả
-    if (req.user.role === 'admin') {
-      return next();
-    }
-
-    return res.status(403).json({ 
-      success: false, 
-      error: 'Access denied' 
-    });
+    next();
 
   } catch (error) {
-    console.error('Classroom access check error:', error);
+    console.error('Classroom access middleware error:', error);
     return res.status(500).json({ 
       success: false, 
-      error: 'Access check failed' 
+      error: 'Access check failed',
+      message: 'Unable to verify classroom access'
     });
   }
 };
 
-module.exports = { requireRole, requireOwnership, requireClassroomAccess };
+// Additional helper middleware for teacher-only actions
+const requireClassroomTeacher = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { classroomId } = req.params;
+
+    // Validate classroomId
+    if (!classroomId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Classroom ID is required'
+      });
+    }
+
+    // Admin can perform teacher actions
+    if (req.user.role === 'admin') {
+      return next();
+    }
+
+    // Check if user is teacher of this classroom
+    const isTeacher = await Classroom.isTeacher(classroomId, userId);
+    
+    if (!isTeacher) {
+      // Check if classroom exists for better error message
+      const exists = await Classroom.exists(classroomId);
+      
+      if (!exists) {
+        return res.status(404).json({
+          success: false,
+          error: 'Classroom not found'
+        });
+      }
+
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden',
+        message: 'Only classroom teachers can perform this action'
+      });
+    }
+
+    // Attach role info
+    req.classroomAccess = {
+      type: 'teacher',
+      isTeacher: true,
+      isLearner: false,
+      isAdmin: false
+    };
+
+    next();
+
+  } catch (error) {
+    console.error('Classroom teacher check error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Authorization check failed'
+    });
+  }
+};
+
+module.exports = { 
+  requireRole, 
+  requireOwnership, 
+  requireClassroomAccess,
+  requireClassroomTeacher 
+};
