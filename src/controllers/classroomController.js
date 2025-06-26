@@ -22,7 +22,7 @@ class ClassroomController {
                     grade_level: gradeLevel,
                     teacher_id: teacherId,
                     class_code: classCode,
-                    max_students: maxLearners,
+                    max_learners: maxLearners,
                     is_active: true
                 })
                 .select()
@@ -54,7 +54,7 @@ class ClassroomController {
                 .from('classrooms')
                 .select(`
                     *,
-                    student_count:classroom_students(count)
+                    learner_count:classroom_learners(count)
                 `)
                 .eq('teacher_id', teacherId)
                 .eq('is_active', true)
@@ -73,7 +73,7 @@ class ClassroomController {
             // Merge assignment counts
             const enhancedClassrooms = classrooms.map(classroom => ({
                 ...classroom,
-                student_count: classroom.student_count[0]?.count || 0,
+                learner_count: classroom.learner_count[0]?.count || 0,
                 assignment_count: assignments?.filter(a => a.classroom_id === classroom.id).length || 0
             }));
             
@@ -91,8 +91,8 @@ class ClassroomController {
         }
     }
     
-    // USC15: Add/Remove students
-    async inviteStudents(req, res) {
+    // USC15: Add/Remove learners
+    async inviteLearners(req, res) {
         try {
             const teacherId = req.user.id;
             const { classroomId } = req.params;
@@ -115,15 +115,15 @@ class ClassroomController {
             
             // Check classroom capacity
             const { count: currentLearners } = await supabase
-                .from('classroom_students')
+                .from('classroom_learners')
                 .select('*', { count: 'exact', head: true })
                 .eq('classroom_id', classroomId)
                 .eq('status', 'active');
                 
-            if (currentLearners + emails.length > classroom.max_students) {
+            if (currentLearners + emails.length > classroom.max_learners) {
                 return res.status(400).json({
                     success: false,
-                    error: `Lớp học chỉ còn ${classroom.max_students - currentLearners} chỗ trống`
+                    error: `Lớp học chỉ còn ${classroom.max_learners - currentLearners} chỗ trống`
                 });
             }
             
@@ -173,7 +173,7 @@ class ClassroomController {
             });
             
         } catch (error) {
-            console.error('Invite students error:', error);
+            console.error('Invite learners error:', error);
             res.status(500).json({
                 success: false,
                 error: 'Không thể gửi lời mời'
@@ -181,8 +181,8 @@ class ClassroomController {
         }
     }
     
-    // Remove students from classroom
-    async removeStudents(req, res) {
+    // Remove learners from classroom
+    async removeLearners(req, res) {
         try {
             const teacherId = req.user.id;
             const { classroomId } = req.params;
@@ -203,15 +203,15 @@ class ClassroomController {
                 });
             }
             
-            // Update student status
+            // Update learner status
             const { error } = await supabase
-                .from('classroom_students')
+                .from('classroom_learners')
                 .update({ 
                     status: 'removed',
                     left_at: new Date()
                 })
                 .eq('classroom_id', classroomId)
-                .in('student_id', learnerIds);
+                .in('learner_id', learnerIds);
                 
             if (error) throw error;
             
@@ -221,7 +221,7 @@ class ClassroomController {
             });
             
         } catch (error) {
-            console.error('Remove students error:', error);
+            console.error('Remove learners error:', error);
             res.status(500).json({
                 success: false,
                 error: 'Không thể xóa học sinh'
@@ -290,25 +290,25 @@ class ClassroomController {
             
             // Create learner assignments for all active learners
             const { data: learners } = await supabase
-                .from('classroom_students')
-                .select('student_id')
+                .from('classroom_learners')
+                .select('learner_id')
                 .eq('classroom_id', classroomId)
                 .eq('status', 'active');
 
             if (learners && learners.length > 0) {
                 const learnerAssignments = learners.map(s => ({
                     assignment_id: assignment.id,
-                    student_id: s.student_id,
+                    learner_id: s.learner_id,
                     status: 'assigned'
                 }));
 
                 await supabase
-                    .from('student_assignments')
+                    .from('learner_assignments')
                     .insert(learnerAssignments);
 
                 // Send notifications to learners
                 const notifications = learners.map(s => ({
-                    user_id: s.student_id,
+                    user_id: s.learner_id,
                     title: 'Bài tập mới',
                     message: `Bạn có bài tập mới "${title}" trong lớp ${classroom.name}`,
                     type: 'assignment',
@@ -359,7 +359,7 @@ class ClassroomController {
             
             // Get learners in classroom
             const { data: learners } = await supabase
-                .from('classroom_students')
+                .from('classroom_learners')
                 .select(`
                     learner:users(
                         id,
@@ -376,8 +376,8 @@ class ClassroomController {
                 .from('assignments')
                 .select(`
                     *,
-                    submissions:student_assignments(
-                        student_id,
+                    submissions:learner_assignments(
+                        learner_id,
                         status,
                         score,
                         completed_at
@@ -453,7 +453,7 @@ class ClassroomController {
         }
     }
     
-    // Student join classroom
+    // Learner join classroom
     async joinClassroom(req, res) {
         try {
             const learnerId = req.user.id;
@@ -476,10 +476,10 @@ class ClassroomController {
             
             // Check if already joined
             const { data: existing } = await supabase
-                .from('classroom_students')
+                .from('classroom_learners')
                 .select('id')
                 .eq('classroom_id', classroom.id)
-                .eq('student_id', learnerId)
+                .eq('learner_id', learnerId)
                 .single();
                 
             if (existing) {
@@ -491,12 +491,12 @@ class ClassroomController {
             
             // Check capacity
             const { count: currentLearners } = await supabase
-                .from('classroom_students')
+                .from('classroom_learners')
                 .select('*', { count: 'exact', head: true })
                 .eq('classroom_id', classroom.id)
                 .eq('status', 'active');
                 
-            if (currentLearners >= classroom.max_students) {
+            if (currentLearners >= classroom.max_learners) {
                 return res.status(400).json({
                     success: false,
                     error: 'Lớp học đã đầy'
@@ -505,10 +505,10 @@ class ClassroomController {
             
             // Join classroom
             const { error: joinError } = await supabase
-                .from('classroom_students')
+                .from('classroom_learners')
                 .insert({
                     classroom_id: classroom.id,
-                    student_id: learnerId,
+                    learner_id: learnerId,
                     status: 'active'
                 });
                 
@@ -532,15 +532,15 @@ class ClassroomController {
         }
     }
 
-    // Get classes of current user (student)
+    // Get classes of current user (learner)
     async getMyClasses(req, res) {
         try {
             const learnerId = req.user.id;
 
             const { data: classes, error } = await supabase
-                .from('classroom_students')
+                .from('classroom_learners')
                 .select('classroom:classrooms(*)')
-                .eq('student_id', learnerId)
+                .eq('learner_id', learnerId)
                 .eq('status', 'active');
 
             if (error) throw error;
@@ -572,10 +572,10 @@ class ClassroomController {
 
             if (classroom.teacher_id !== userId) {
                 const { data: member } = await supabase
-                    .from('classroom_students')
+                    .from('classroom_learners')
                     .select('id')
                     .eq('classroom_id', classroomId)
-                    .eq('student_id', userId)
+                    .eq('learner_id', userId)
                     .eq('status', 'active')
                     .single();
                 if (!member) {
@@ -584,7 +584,7 @@ class ClassroomController {
             }
 
             const { data: learners } = await supabase
-                .from('classroom_students')
+                .from('classroom_learners')
                 .select('learner:users(id, full_name, email)')
                 .eq('classroom_id', classroomId)
                 .eq('status', 'active');
@@ -620,10 +620,10 @@ class ClassroomController {
 
             if (classroom.teacher_id !== userId) {
                 const { data: member } = await supabase
-                    .from('classroom_students')
+                    .from('classroom_learners')
                     .select('id')
                     .eq('classroom_id', classroomId)
-                    .eq('student_id', userId)
+                    .eq('learner_id', userId)
                     .eq('status', 'active')
                     .single();
                 if (!member) {
