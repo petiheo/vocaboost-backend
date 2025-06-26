@@ -1,6 +1,5 @@
 const supabase = require('../config/database');
 const emailService = require('../services/emailService');
-const logger = require('../utils/logger');
 const cacheService = require('../services/CacheService');
 
 class AdminController {
