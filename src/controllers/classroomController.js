@@ -7,7 +7,7 @@ class ClassroomController {
     async createClassroom(req, res) {
         try {
             const teacherId = req.user.id;
-            const { name, description, subject, gradeLevel, maxStudents = 50 } = req.body;
+            const { name, description, subject, gradeLevel, maxLearners = 50 } = req.body;
             
             // Generate unique class code
             const classCode = await this.generateUniqueClassCode();
@@ -22,7 +22,7 @@ class ClassroomController {
                     grade_level: gradeLevel,
                     teacher_id: teacherId,
                     class_code: classCode,
-                    max_students: maxStudents,
+                    max_students: maxLearners,
                     is_active: true
                 })
                 .select()
@@ -114,16 +114,16 @@ class ClassroomController {
             }
             
             // Check classroom capacity
-            const { count: currentStudents } = await supabase
+            const { count: currentLearners } = await supabase
                 .from('classroom_students')
                 .select('*', { count: 'exact', head: true })
                 .eq('classroom_id', classroomId)
                 .eq('status', 'active');
                 
-            if (currentStudents + emails.length > classroom.max_students) {
+            if (currentLearners + emails.length > classroom.max_students) {
                 return res.status(400).json({
                     success: false,
-                    error: `Lớp học chỉ còn ${classroom.max_students - currentStudents} chỗ trống`
+                    error: `Lớp học chỉ còn ${classroom.max_students - currentLearners} chỗ trống`
                 });
             }
             
@@ -186,7 +186,7 @@ class ClassroomController {
         try {
             const teacherId = req.user.id;
             const { classroomId } = req.params;
-            const { studentIds } = req.body;
+            const { learnerIds } = req.body;
             
             // Verify teacher owns classroom
             const { data: classroom, error: classError } = await supabase
@@ -211,13 +211,13 @@ class ClassroomController {
                     left_at: new Date()
                 })
                 .eq('classroom_id', classroomId)
-                .in('student_id', studentIds);
+                .in('student_id', learnerIds);
                 
             if (error) throw error;
             
             res.json({
                 success: true,
-                message: `Đã xóa ${studentIds.length} học sinh khỏi lớp`
+                message: `Đã xóa ${learnerIds.length} học sinh khỏi lớp`
             });
             
         } catch (error) {
@@ -288,26 +288,26 @@ class ClassroomController {
                     .insert(vocabularyLinks);
             }
             
-            // Create student assignments for all active students
-            const { data: students } = await supabase
+            // Create learner assignments for all active learners
+            const { data: learners } = await supabase
                 .from('classroom_students')
                 .select('student_id')
                 .eq('classroom_id', classroomId)
                 .eq('status', 'active');
-                
-            if (students && students.length > 0) {
-                const studentAssignments = students.map(s => ({
+
+            if (learners && learners.length > 0) {
+                const learnerAssignments = learners.map(s => ({
                     assignment_id: assignment.id,
                     student_id: s.student_id,
                     status: 'assigned'
                 }));
-                
+
                 await supabase
                     .from('student_assignments')
-                    .insert(studentAssignments);
-                    
-                // Send notifications to students
-                const notifications = students.map(s => ({
+                    .insert(learnerAssignments);
+
+                // Send notifications to learners
+                const notifications = learners.map(s => ({
                     user_id: s.student_id,
                     title: 'Bài tập mới',
                     message: `Bạn có bài tập mới "${title}" trong lớp ${classroom.name}`,
@@ -357,11 +357,11 @@ class ClassroomController {
                 });
             }
             
-            // Get students in classroom
-            const { data: students } = await supabase
+            // Get learners in classroom
+            const { data: learners } = await supabase
                 .from('classroom_students')
                 .select(`
-                    student:users(
+                    learner:users(
                         id,
                         full_name,
                         email,
@@ -390,18 +390,18 @@ class ClassroomController {
                 classroom: {
                     id: classroom.id,
                     name: classroom.name,
-                    studentCount: students?.length || 0,
+                    learnerCount: learners?.length || 0,
                     assignmentCount: assignments?.length || 0
                 },
-                students: students?.map(s => ({
-                    id: s.student.id,
-                    name: s.student.full_name,
-                    email: s.student.email,
-                    totalVocabulary: s.student.stats?.[0]?.total_vocabulary || 0,
-                    accuracy: s.student.stats?.[0]?.correct_reviews 
-                        ? Math.round((s.student.stats[0].correct_reviews / s.student.stats[0].total_reviews) * 100)
+                learners: learners?.map(s => ({
+                    id: s.learner.id,
+                    name: s.learner.full_name,
+                    email: s.learner.email,
+                    totalVocabulary: s.learner.stats?.[0]?.total_vocabulary || 0,
+                    accuracy: s.learner.stats?.[0]?.correct_reviews
+                        ? Math.round((s.learner.stats[0].correct_reviews / s.learner.stats[0].total_reviews) * 100)
                         : 0,
-                    streak: s.student.stats?.[0]?.current_streak || 0
+                    streak: s.learner.stats?.[0]?.current_streak || 0
                 })) || [],
                 assignments: assignments?.map(a => ({
                     id: a.id,
@@ -428,15 +428,15 @@ class ClassroomController {
             };
             
             // Calculate summary stats
-            if (analytics.students.length > 0) {
+            if (analytics.learners.length > 0) {
                 analytics.summary.averageAccuracy = Math.round(
-                    analytics.students.reduce((sum, s) => sum + s.accuracy, 0) / analytics.students.length
+                    analytics.learners.reduce((sum, s) => sum + s.accuracy, 0) / analytics.learners.length
                 );
                 analytics.summary.averageStreak = Math.round(
-                    analytics.students.reduce((sum, s) => sum + s.streak, 0) / analytics.students.length
+                    analytics.learners.reduce((sum, s) => sum + s.streak, 0) / analytics.learners.length
                 );
-                analytics.summary.totalVocabularyLearned = 
-                    analytics.students.reduce((sum, s) => sum + s.totalVocabulary, 0);
+                analytics.summary.totalVocabularyLearned =
+                    analytics.learners.reduce((sum, s) => sum + s.totalVocabulary, 0);
             }
             
             res.json({
@@ -456,7 +456,7 @@ class ClassroomController {
     // Student join classroom
     async joinClassroom(req, res) {
         try {
-            const studentId = req.user.id;
+            const learnerId = req.user.id;
             const { classCode } = req.body;
             
             // Find classroom by code
@@ -479,7 +479,7 @@ class ClassroomController {
                 .from('classroom_students')
                 .select('id')
                 .eq('classroom_id', classroom.id)
-                .eq('student_id', studentId)
+                .eq('student_id', learnerId)
                 .single();
                 
             if (existing) {
@@ -490,13 +490,13 @@ class ClassroomController {
             }
             
             // Check capacity
-            const { count: currentStudents } = await supabase
+            const { count: currentLearners } = await supabase
                 .from('classroom_students')
                 .select('*', { count: 'exact', head: true })
                 .eq('classroom_id', classroom.id)
                 .eq('status', 'active');
                 
-            if (currentStudents >= classroom.max_students) {
+            if (currentLearners >= classroom.max_students) {
                 return res.status(400).json({
                     success: false,
                     error: 'Lớp học đã đầy'
@@ -508,7 +508,7 @@ class ClassroomController {
                 .from('classroom_students')
                 .insert({
                     classroom_id: classroom.id,
-                    student_id: studentId,
+                    student_id: learnerId,
                     status: 'active'
                 });
                 
@@ -535,12 +535,12 @@ class ClassroomController {
     // Get classes of current user (student)
     async getMyClasses(req, res) {
         try {
-            const studentId = req.user.id;
+            const learnerId = req.user.id;
 
             const { data: classes, error } = await supabase
                 .from('classroom_students')
                 .select('classroom:classrooms(*)')
-                .eq('student_id', studentId)
+                .eq('student_id', learnerId)
                 .eq('status', 'active');
 
             if (error) throw error;
@@ -583,9 +583,9 @@ class ClassroomController {
                 }
             }
 
-            const { data: students } = await supabase
+            const { data: learners } = await supabase
                 .from('classroom_students')
-                .select('student:users(id, full_name, email)')
+                .select('learner:users(id, full_name, email)')
                 .eq('classroom_id', classroomId)
                 .eq('status', 'active');
 
@@ -595,7 +595,7 @@ class ClassroomController {
                 .eq('classroom_id', classroomId)
                 .eq('is_active', true);
 
-            res.json({ success: true, data: { classroom, students, assignments } });
+            res.json({ success: true, data: { classroom, learners, assignments } });
         } catch (error) {
             console.error('Get classroom details error:', error);
             res.status(500).json({ success: false, error: 'Không thể lấy thông tin lớp học' });
