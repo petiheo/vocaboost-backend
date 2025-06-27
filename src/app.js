@@ -1,15 +1,7 @@
 const express = require('express');
 const passport = require('passport');
 
-// Import routes
-const authRoutes = require('./routes/authRoutes');
-const userRoutes = require('./routes/userRoutes');
-const vocabularyRoutes = require('./routes/vocabularyRoutes');
-const reviewRoutes = require('./routes/reviewRoutes');
-const classroomRoutes = require('./routes/classroomRoutes');
-const adminRoutes = require('./routes/adminRoutes');
-
-// Import middleware
+const routes = require('./routes');
 const { securityMiddleware } = require('./middleware/core/security');
 const { requestLogger, auditLogger } = require('./middleware/core/logging');
 const { parsingMiddleware } = require('./middleware/core/parsing');
@@ -25,7 +17,7 @@ require('./config/auth');
 // Create Express app
 const app = express();
 
-// Basic middleware - tương tự như FastAPI middleware
+// Apply middleware layers
 app.use(requestId);
 app.use(requestContext);
 app.use(performanceMonitor);
@@ -40,24 +32,11 @@ app.use('/api/', auditLogger);
 app.use(passport.initialize());
 app.use(passport.session());
 
-// API Routes - tương tự như router trong FastAPI
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/vocabulary', vocabularyRoutes);
-app.use('/api/review', reviewRoutes);
-app.use('/api/classrooms', classroomRoutes);
-app.use('/api/admin', adminRoutes);
+// API Routes - now using the new 3-layer architecture
+app.use('/api', routes);
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-    res.json({ status: 'OK', timestamp: new Date() });
-});
-
-// 404 handler
+// Error handling
 app.use(notFoundHandler);
-app.use(errorHandler);
-
-// Error handling middleware - phải đặt cuối cùng
 app.use(errorHandler);
 
 module.exports = app;
