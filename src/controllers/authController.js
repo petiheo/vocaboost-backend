@@ -39,7 +39,6 @@ class AuthController {
                     const emailService = new EmailService();
                     await emailService.sendRegistrationConfirmation({
                         to: newUser.email,
-                        fullName: newUser.full_name || newUser.email,
                         confirmationToken: verificationToken
                     });
                 } catch (err) {

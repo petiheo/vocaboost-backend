@@ -46,7 +46,6 @@ const authValidators = {
   register: [
     commonValidators.email(),
     commonValidators.password(),
-    // body('fullName').trim().isLength({ min: 2, max: 100 }),
     body('role').optional().isIn(['learner', 'teacher']),
     handleValidationErrors
   ],
