@@ -15,7 +15,7 @@ CREATE TYPE assignment_status AS ENUM ('assigned', 'in_progress', 'completed', '
 CREATE TABLE users (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255) NULL,
     full_name VARCHAR(100),
     avatar_url TEXT,
     role user_role DEFAULT 'learner',
@@ -25,7 +25,8 @@ CREATE TABLE users (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     last_login TIMESTAMP WITH TIME ZONE,
     deactivated_at TIMESTAMP WITH TIME ZONE,
-    deactivation_reason TEXT
+    deactivation_reason TEXT,
+    google_id VARCHAR(255) UNIQUE
 );
 
 -- Create indexes for performance
@@ -33,6 +34,14 @@ CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_users_status ON users(status);
 CREATE INDEX idx_users_created_at ON users(created_at);
+CREATE INDEX idx_users_google_id ON users(google_id);
+
+ALTER TABLE users 
+ADD CONSTRAINT check_auth_method 
+CHECK (
+  (password_hash IS NOT NULL) OR 
+  (google_id IS NOT NULL) 
+);
 
 -- Vocabulary table
 CREATE TABLE vocabulary (
@@ -531,16 +540,3 @@ CREATE TABLE sessions (
 CREATE INDEX idx_sessions_token ON sessions(token);
 CREATE INDEX idx_sessions_user ON sessions(user_id);
 CREATE INDEX idx_sessions_expires ON sessions(expires_at);
-
--- Email verification tokens
-CREATE TABLE email_verification_tokens (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    token VARCHAR(255) UNIQUE NOT NULL,
-    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    used BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE INDEX idx_email_verify_token ON email_verification_tokens(token) WHERE used = FALSE;
-CREATE INDEX idx_email_verify_user ON email_verification_tokens(user_id);

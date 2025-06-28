@@ -155,7 +155,7 @@ $ cp .env.example .env
 # → Điền thông tin DB, JWT, SMTP, OAuth, Redis, Gemini...
 
 # 3. Khởi tạo cơ sở dữ liệu (Supabase)
-$ supabase db push                   # hoặc psql -f supabase/migrations/001_initial_schema.sql
+$ supabase db push                   # hoặc psql -f 001_initial_schema.sql
 
 # 4. Chạy server ở chế độ development (nodemon reload)
 $ npm run dev
