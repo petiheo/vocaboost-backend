@@ -21,12 +21,7 @@ router.get('/my-classrooms',
 
 router.post('/:classroomId/invite',
     requireRole('teacher'),
-    [
-        param('classroomId').isUUID(),
-        body('emails').isArray().notEmpty(),
-        body('emails.*').isEmail(),
-        handleValidationErrors
-    ],
+    classroomValidators.invite,
     classroomController.inviteStudents
 );
 

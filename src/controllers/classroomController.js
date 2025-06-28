@@ -673,6 +673,270 @@ class ClassroomController {
         
         return code;
     }
+
+    // USC15: Invite students via email  
+    async inviteStudents(req, res) {
+        try {
+            const teacherId = req.user.id;
+            const { classroomId } = req.params;
+            const { emails, message } = req.body;
+            
+            // Verify teacher owns classroom
+            const { data: classroom, error: classError } = await supabase
+                .from('classrooms')
+                .select('*')
+                .eq('id', classroomId)
+                .eq('teacher_id', teacherId)
+                .single();
+                
+            if (classError || !classroom) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Không có quyền truy cập lớp học này'
+                });
+            }
+            
+            // Check classroom capacity
+            const { count: currentStudents } = await supabase
+                .from('classroom_learners')
+                .select('*', { count: 'exact', head: true })
+                .eq('classroom_id', classroomId)
+                .eq('status', 'active');
+                
+            if (currentStudents + emails.length > classroom.max_learners) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Lớp học chỉ còn ${classroom.max_learners - currentStudents} chỗ trống`
+                });
+            }
+            
+            // Check for existing users and invitations
+            const { data: existingUsers } = await supabase
+                .from('users')
+                .select('email')
+                .in('email', emails);
+                
+            const { data: existingInvites } = await supabase
+                .from('classroom_invitations')
+                .select('email')
+                .eq('classroom_id', classroomId)
+                .in('email', emails)
+                .eq('status', 'pending');
+                
+            const existingUserEmails = existingUsers?.map(u => u.email) || [];
+            const existingInviteEmails = existingInvites?.map(i => i.email) || [];
+            
+            // Filter out emails that already have pending invitations
+            const newEmails = emails.filter(email => 
+                !existingInviteEmails.includes(email)
+            );
+            
+            if (newEmails.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Tất cả email đã được mời hoặc đã tham gia lớp học'
+                });
+            }
+            
+            // Create invitations
+            const invitations = [];
+            const emailPromises = [];
+            
+            for (const email of newEmails) {
+                const inviteCode = uuidv4();
+                invitations.push({
+                    classroom_id: classroomId,
+                    email: email,
+                    invite_code: inviteCode,
+                    invited_by: teacherId,
+                    status: 'pending',
+                    expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+                });
+                
+                // Send invitation email
+                emailPromises.push(
+                    emailService.sendClassroomInvitation({
+                        to: email,
+                        classroomName: classroom.name,
+                        teacherName: req.user.full_name || req.user.name,
+                        inviteCode: inviteCode,
+                        message: message,
+                        classCode: classroom.class_code
+                    })
+                );
+            }
+            
+            // Insert invitations
+            const { error: inviteError } = await supabase
+                .from('classroom_invitations')
+                .insert(invitations);
+                
+            if (inviteError) throw inviteError;
+            
+            // Send emails (don't wait for completion)
+            Promise.all(emailPromises).catch(err => 
+                console.error('Email sending error:', err)
+            );
+            
+            // Handle existing users - auto-add them to classroom
+            const existingUsersToAdd = [];
+            if (existingUserEmails.length > 0) {
+                const { data: usersToAdd } = await supabase
+                    .from('users')
+                    .select('id, email')
+                    .in('email', existingUserEmails);
+                    
+                for (const user of usersToAdd) {
+                    // Check if user is already in classroom
+                    const { data: existing } = await supabase
+                        .from('classroom_learners')
+                        .select('id')
+                        .eq('classroom_id', classroomId)
+                        .eq('learner_id', user.id)
+                        .single();
+                        
+                    if (!existing) {
+                        existingUsersToAdd.push({
+                            classroom_id: classroomId,
+                            learner_id: user.id,
+                            status: 'active',
+                            joined_at: new Date()
+                        });
+                    }
+                }
+                
+                if (existingUsersToAdd.length > 0) {
+                    await supabase
+                        .from('classroom_learners')
+                        .insert(existingUsersToAdd);
+                }
+            }
+            
+            res.json({
+                success: true,
+                data: {
+                    invitesSent: newEmails.length,
+                    usersAdded: existingUsersToAdd.length,
+                    totalProcessed: emails.length
+                },
+                message: `Đã xử lý ${emails.length} email: ${newEmails.length} lời mời được gửi, ${existingUsersToAdd.length} người dùng được thêm trực tiếp`
+            });
+            
+        } catch (error) {
+            console.error('Invite students error:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Không thể gửi lời mời tham gia lớp học'
+            });
+        }
+    }
+
+    // Remove students from classroom
+    async removeStudents(req, res) {
+        try {
+            const teacherId = req.user.id;
+            const { classroomId } = req.params;
+            const { studentIds } = req.body;
+            
+            // Validate input
+            if (!Array.isArray(studentIds) || studentIds.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Danh sách học sinh không hợp lệ'
+                });
+            }
+            
+            // Verify teacher owns classroom
+            const { data: classroom, error: classError } = await supabase
+                .from('classrooms')
+                .select('id, name')
+                .eq('id', classroomId)
+                .eq('teacher_id', teacherId)
+                .single();
+                
+            if (classError || !classroom) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Không có quyền truy cập lớp học này'
+                });
+            }
+            
+            // Check which students are actually in the classroom
+            const { data: existingStudents, error: checkError } = await supabase
+                .from('classroom_learners')
+                .select('learner_id, users(full_name, email)')
+                .eq('classroom_id', classroomId)
+                .in('learner_id', studentIds)
+                .eq('status', 'active');
+                
+            if (checkError) throw checkError;
+            
+            if (existingStudents.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Không tìm thấy học sinh nào trong lớp học'
+                });
+            }
+            
+            const validStudentIds = existingStudents.map(s => s.learner_id);
+            
+            // Remove students from classroom (soft delete)
+            const { error: removeError } = await supabase
+                .from('classroom_learners')
+                .update({ 
+                    status: 'removed',
+                    left_at: new Date()
+                })
+                .eq('classroom_id', classroomId)
+                .in('learner_id', validStudentIds);
+                
+            if (removeError) throw removeError;
+            
+            // Also remove/cancel any pending assignments for these students
+            await supabase
+                .from('assignment_submissions')
+                .update({ status: 'cancelled' })
+                .eq('classroom_id', classroomId)
+                .in('learner_id', validStudentIds)
+                .eq('status', 'pending');
+            
+            // Log activity
+            const activityLogs = validStudentIds.map(studentId => ({
+                classroom_id: classroomId,
+                user_id: teacherId,
+                action: 'remove_student',
+                details: {
+                    removed_student_id: studentId,
+                    removed_student_name: existingStudents.find(s => s.learner_id === studentId)?.users?.full_name
+                }
+            }));
+            
+            await supabase
+                .from('classroom_activity_logs')
+                .insert(activityLogs)
+                .select();
+            
+            res.json({
+                success: true,
+                data: {
+                    removedCount: validStudentIds.length,
+                    removedStudents: existingStudents.map(s => ({
+                        id: s.learner_id,
+                        name: s.users?.full_name,
+                        email: s.users?.email
+                    }))
+                },
+                message: `Đã xóa ${validStudentIds.length} học sinh khỏi lớp học`
+            });
+            
+        } catch (error) {
+            console.error('Remove students error:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Không thể xóa học sinh khỏi lớp học'
+            });
+        }
+    }
 }
 
 module.exports = new ClassroomController();
