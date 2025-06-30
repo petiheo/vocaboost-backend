@@ -7,7 +7,6 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 -- Create custom types
 CREATE TYPE user_role AS ENUM ('learner', 'teacher', 'admin');
 CREATE TYPE user_status AS ENUM ('active', 'inactive', 'suspended');
-CREATE TYPE difficulty_level AS ENUM ('beginner', 'intermediate', 'advanced');
 CREATE TYPE assignment_type AS ENUM ('vocabulary', 'quiz', 'essay', 'speaking');
 CREATE TYPE assignment_status AS ENUM ('assigned', 'in_progress', 'completed', 'overdue');
 
@@ -26,7 +25,8 @@ CREATE TABLE users (
     last_login TIMESTAMP WITH TIME ZONE,
     deactivated_at TIMESTAMP WITH TIME ZONE,
     deactivation_reason TEXT,
-    google_id VARCHAR(255) UNIQUE
+    google_id VARCHAR(255) UNIQUE,
+    password_changed_at TIMESTAMP WITH TIME ZONE
 );
 
 -- Create indexes for performance
@@ -51,7 +51,6 @@ CREATE TABLE vocabulary (
     part_of_speech VARCHAR(50),
     definition TEXT NOT NULL,
     english_definition TEXT,
-    difficulty_level difficulty_level DEFAULT 'beginner',
     frequency_score INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -61,7 +60,6 @@ CREATE TABLE vocabulary (
 
 -- Indexes for vocabulary search and filtering
 CREATE INDEX idx_vocabulary_word ON vocabulary USING gin(word gin_trgm_ops);
-CREATE INDEX idx_vocabulary_difficulty ON vocabulary(difficulty_level);
 CREATE INDEX idx_vocabulary_frequency ON vocabulary(frequency_score DESC);
 CREATE INDEX idx_vocabulary_active ON vocabulary(is_active) WHERE is_active = TRUE;
 
@@ -517,10 +515,11 @@ $$ LANGUAGE plpgsql;
 CREATE TABLE password_resets (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    token VARCHAR(255) UNIQUE NOT NULL,
+    token TEXT UNIQUE NOT NULL,
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     used BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    used_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE INDEX idx_password_resets_token ON password_resets(token) WHERE used = FALSE;
@@ -540,3 +539,16 @@ CREATE TABLE sessions (
 CREATE INDEX idx_sessions_token ON sessions(token);
 CREATE INDEX idx_sessions_user ON sessions(user_id);
 CREATE INDEX idx_sessions_expires ON sessions(expires_at);
+
+-- Email verification tokensAdd commentMore actions
+CREATE TABLE email_verification_tokens (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    token TEXT UNIQUE NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    used BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX idx_email_verify_token ON email_verification_tokens(token) WHERE used = FALSE;Add commentMore actions
+CREATE INDEX idx_email_verify_user ON email_verification_tokens(user_id);

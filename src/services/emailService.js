@@ -29,7 +29,7 @@ class EmailService {
     }
     
     this.templates = new Map();
-    this.loadTemplates();
+    // this.loadTemplates();
   }
 
   async loadTemplates() {
@@ -69,9 +69,9 @@ class EmailService {
       await this.transporter.sendMail({
         from: `"VocaBoost" <${process.env.FROM_EMAIL}>`,
         to,
-        subject: 'Chào mừng bạn đến với VocaBoost - Xác nhận tài khoản',
+        subject: 'Welcome to VocaBoost - Verify account',
         html,
-        text: `Chào ${fullName}, vui lòng xác nhận tài khoản tại: ${process.env.FRONTEND_URL}/confirm-email?token=${confirmationToken}`
+        text: `Hi ${fullName}, please verify your account at: ${process.env.FRONTEND_URL}/confirm-email?token=${confirmationToken}`
       });
 
       return { success: true };
@@ -84,25 +84,26 @@ class EmailService {
   // Gửi email reset mật khẩu
   async sendPasswordReset({ to, fullName, resetToken }) {
     try {
+      await this.loadTemplates();
       const template = this.templates.get('password-reset');
       const html = template({
         fullName,
         resetUrl: `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`,
-        expirationTime: '1 giờ'
+        expirationTime: '1 hour'
       });
 
       await this.transporter.sendMail({
         from: `"VocaBoost" <${process.env.FROM_EMAIL}>`,
         to,
-        subject: 'Đặt lại mật khẩu VocaBoost',
+        subject: 'Reset password VocaBoost',
         html,
-        text: `Đặt lại mật khẩu tại: ${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`
+        text: `Reset password at: ${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`
       });
 
       return { success: true };
     } catch (error) {
       console.error('Password reset email error:', error);
-      throw new Error('Không thể gửi email đặt lại mật khẩu');
+      throw new Error('Failed to send email reset password');
     }
   }
 
@@ -116,6 +117,7 @@ class EmailService {
     classCode 
   }) {
     try {
+      await this.loadTemplates();
       const template = this.templates.get('classroom-invitation');
       const html = template({
         classroomName,
@@ -144,6 +146,7 @@ class EmailService {
   // Gửi báo cáo tiến độ hàng tuần
   async sendWeeklyProgress({ to, fullName, stats, achievements }) {
     try {
+      await this.loadTemplates();
       const template = this.templates.get('weekly-progress');
       const html = template({
         fullName,
@@ -182,6 +185,7 @@ class EmailService {
     teacherName 
   }) {
     try {
+      await this.loadTemplates();
       const template = this.templates.get('assignment-notification');
       const html = template({
         studentName,
@@ -210,6 +214,7 @@ class EmailService {
   // Bulk email cho admin
   async sendBulkEmail({ recipients, subject, template, data }) {
     try {
+      await this.loadTemplates();
       const compiledTemplate = this.templates.get(template);
       if (!compiledTemplate) throw new Error(`Template ${template} not found`);
 

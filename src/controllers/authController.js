@@ -1,10 +1,44 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Token = require('../models/Token');
+const EmailService = require('../services/emailService');
 const { generateToken, generateEmailVerificationToken } = require('../utils/jwtHelper');
 
 class AuthController {
-    
+    async test(req, res) {
+        return res.status(200).json({
+            "message": "Hello ní"
+        })
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     // USC1: Register new user - Sign up
     async register(req, res) {
         try {
@@ -35,7 +69,6 @@ class AuthController {
                     const verificationToken = generateEmailVerificationToken(newUser.id);
                     const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
                     await Token.createEmailVerificationToken(newUser.id, verificationToken, expires);
-                    const EmailService = require('../services/emailService');
                     const emailService = new EmailService();
                     await emailService.sendRegistrationConfirmation({
                         to: newUser.email,
@@ -84,6 +117,17 @@ class AuthController {
             // ✅ Use Model Layer: Get user by email
             const user = await User.findByEmail(email);
             if (!user) {
+                // Track failed attempt if tracking is available
+                if (req.loginTracking) {
+                    const trackingResult = await req.loginTracking.trackFailure();
+                    if (trackingResult.remainingAttempts > 0) {
+                        return res.status(401).json({ 
+                            success: false,
+                            error: 'Invalid email or password',
+                            remainingAttempts: trackingResult.remainingAttempts
+                        });
+                    }
+                }
                 return res.status(401).json({ 
                     success: false,
                     error: 'Invalid credentials' 
@@ -93,6 +137,20 @@ class AuthController {
             // ✅ Use Model Layer: Validate password
             const isValidPassword = await User.validatePassword(password, user.password_hash);
             if (!isValidPassword) {
+                // Track failed attempt
+                if (req.loginTracking) {
+                    const trackingResult = await req.loginTracking.trackFailure();
+                    if (trackingResult.remainingAttempts > 0) {
+                        return res.status(401).json({ 
+                            success: false,
+                            error: 'Invalid email or password',
+                            remainingAttempts: trackingResult.remainingAttempts,
+                            message: trackingResult.remainingAttempts <= 2 
+                                ? `${trackingResult.remainingAttempts} attempts remaining` 
+                                : undefined
+                        });
+                    }
+                }
                 return res.status(401).json({ 
                     success: false,
                     error: 'Invalid credentials' 
@@ -103,15 +161,20 @@ class AuthController {
             if (user.status === 'inactive') {
                 return res.status(403).json({ 
                     success: false,
-                    error: 'Account is deactivated' 
+                    error: 'Account has been deactivated' 
                 });
             }
             
             if (user.status === 'suspended') {
                 return res.status(403).json({ 
                     success: false,
-                    error: 'Account is suspended' 
+                    error: 'Account has been suspended' 
                 });
+            }
+            
+            // Clear login attempts on successful login
+            if (req.loginTracking) {
+                await req.loginTracking.clearAttempts();
             }
             
             // ✅ Use Model Layer: Update last login
@@ -132,6 +195,7 @@ class AuthController {
                         id: user.id,
                         email: user.email,
                         role: user.role,
+                        fullName: user.full_name,
                         avatarUrl: user.avatar_url
                     },
                     token
@@ -142,7 +206,7 @@ class AuthController {
             console.error('Login error:', error);
             res.status(500).json({ 
                 success: false,
-                error: 'Login failed' 
+                error: 'Login failed. Please try again.' 
             });
         }
     }
@@ -198,7 +262,7 @@ class AuthController {
         }
     }
     
-    // USC5: Forgot password
+    // USC5: Forgot password - UPDATED
     async forgotPassword(req, res) {
         try {
             const { email } = req.body;
@@ -206,55 +270,123 @@ class AuthController {
             // ✅ Use Model Layer: Check if user exists
             const user = await User.findByEmail(email);
             
-            // Don't reveal whether email exists or not (security best practice)
+            // Always return success to prevent email enumeration
+            const successResponse = {
+                success: true,
+                message: 'If the email exists in our system, we have sent password reset instructions.'
+            };
+            
             if (!user) {
-                return res.json({ 
-                    success: true,
-                    message: 'If email exists, reset link has been sent' 
-                });
+                // Don't reveal that email doesn't exist
+                return res.json(successResponse);
+            }
+            
+            // Check if user uses Google OAuth (no password)
+            if (!user.password_hash && user.google_id) {
+                // Still send email but with different message
+                try {
+                    const emailService = new EmailService();
+                    await emailService.sendOAuthAccountNotification({
+                        to: email,
+                        fullName: user.full_name || 'User'
+                    });
+                } catch (emailError) {
+                    console.error('Failed to send OAuth notification:', emailError);
+                }
+                return res.json(successResponse);
             }
             
             // Generate reset token
             const resetToken = jwt.sign(
-                { userId: user.id, type: 'reset' },
+                { 
+                    userId: user.id, 
+                    email: user.email,
+                    type: 'password_reset' 
+                },
                 process.env.JWT_SECRET,
                 { expiresIn: '1h' }
             );
             
             const expiresAt = new Date(Date.now() + 3600000); // 1 hour
             
-            // ✅ Use Model Layer: Save reset token
-            await Token.createPasswordResetToken(user.id, resetToken, expiresAt);
+            try {
+                // ✅ Use Model Layer: Save reset token
+                await Token.createPasswordResetToken(user.id, resetToken, expiresAt);
+                
+                // ✅ Send password reset email
+                const emailService = new EmailService();
+                await emailService.sendPasswordReset({
+                    to: user.email,
+                    fullName: user.full_name || 'User',
+                    resetToken: resetToken
+                });
+                
+                console.log(`Password reset email sent to ${email}`);
+            } catch (error) {
+                console.error('Failed to process password reset:', error);
+                // Still return success to user
+            }
             
-            // TODO: Send email with reset link
-            // const emailService = require('../services/emailService');
-            // await emailService.sendPasswordResetEmail(email, resetToken);
-            
-            res.json({ 
-                success: true,
-                message: 'If email exists, reset link has been sent' 
-            });
+            res.json(successResponse);
             
         } catch (error) {
             console.error('Forgot password error:', error);
             res.status(500).json({ 
                 success: false,
-                error: 'Request failed' 
+                error: 'Unable to process request. Please try again later.' 
             });
         }
     }
     
-    // USC6: Reset password
+    // USC6: Reset password - UPDATED
     async resetPassword(req, res) {
         try {
             const { token, newPassword } = req.body;
+            
+            if (!token || !newPassword) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Token and new password are required'
+                });
+            }
+            
+            // Verify JWT token first
+            let decoded;
+            try {
+                decoded = jwt.verify(token, process.env.JWT_SECRET);
+                
+                // Check if it's a password reset token
+                if (decoded.type !== 'password_reset') {
+                    throw new Error('Invalid token type');
+                }
+            } catch (jwtError) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid or expired token'
+                });
+            }
             
             // ✅ Use Model Layer: Find and validate reset token
             const resetData = await Token.findPasswordResetToken(token);
             if (!resetData) {
                 return res.status(400).json({ 
                     success: false,
-                    error: 'Invalid or expired reset token' 
+                    error: 'Token has been used or expired' 
+                });
+            }
+            
+            // Validate password strength
+            if (newPassword.length < 8) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Password must be at least 8 characters long'
+                });
+            }
+            
+            if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(newPassword)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Password must contain uppercase, lowercase and number'
                 });
             }
             
@@ -262,23 +394,35 @@ class AuthController {
             const hashedPassword = await User.hashPassword(newPassword);
             
             // ✅ Use Model Layer: Update user password
-            await User.update(resetData.user.id, { 
-                password_hash: hashedPassword 
+            await User.update(resetData.user_id, { 
+                password_hash: hashedPassword,
+                password_changed_at: new Date()
             });
             
             // ✅ Use Model Layer: Mark reset token as used
             await Token.usePasswordResetToken(token);
             
+            // Optional: Send confirmation email
+            // try {
+            //     const emailService = new EmailService();
+            //     await emailService.sendPasswordChangeConfirmation({
+            //         to: resetData.user.email,
+            //         fullName: resetData.user.full_name || 'User'
+            //     });
+            // } catch (emailError) {
+            //     console.error('Failed to send confirmation email:', emailError);
+            // }
+            
             res.json({ 
                 success: true,
-                message: 'Password reset successful' 
+                message: 'Password has been reset successfully. Please login with your new password.' 
             });
             
         } catch (error) {
             console.error('Reset password error:', error);
             res.status(500).json({ 
                 success: false,
-                error: 'Password reset failed' 
+                error: 'Unable to reset password. Please try again.' 
             });
         }
     }
@@ -322,6 +466,54 @@ class AuthController {
             res.status(500).json({ 
                 success: false,
                 error: 'Email verification failed' 
+            });
+        }
+    }
+    
+    // Additional helper: Resend verification email
+    async resendVerificationEmail(req, res) {
+        try {
+            const { email } = req.body;
+            
+            const user = await User.findByEmail(email);
+            if (!user) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Email not found in the system'
+                });
+            }
+            
+            if (user.email_verified) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Email already verified'
+                });
+            }
+            
+            // Generate new verification token
+            const verificationToken = generateEmailVerificationToken(user.id);
+            const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+            
+            await Token.createEmailVerificationToken(user.id, verificationToken, expires);
+            
+            // Send email
+            const emailService = new EmailService();
+            await emailService.sendRegistrationConfirmation({
+                to: user.email,
+                fullName: user.full_name || 'User',
+                confirmationToken: verificationToken
+            });
+            
+            res.json({
+                success: true,
+                message: 'Verification email has been resent'
+            });
+            
+        } catch (error) {
+            console.error('Resend verification error:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Unable to resend verification email'
             });
         }
     }
