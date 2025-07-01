@@ -62,7 +62,7 @@ class EmailService {
 
       const html = template({
         fullName,
-        confirmationUrl: `${process.env.FRONTEND_URL}/confirm-email?token=${confirmationToken}`,
+        confirmationUrl: `${process.env.FRONTEND_URL}/verify-email?token=${confirmationToken}`,
         supportEmail: process.env.SUPPORT_EMAIL
       });
 

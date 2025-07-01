@@ -5,40 +5,7 @@ const EmailService = require('../services/emailService');
 const { generateToken, generateEmailVerificationToken } = require('../utils/jwtHelper');
 
 class AuthController {
-    async test(req, res) {
-        return res.status(200).json({
-            "message": "Hello ní"
-        })
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
     // USC1: Register new user - Sign up
     async register(req, res) {
         try {
