@@ -41,7 +41,7 @@ const configureJwtStrategy = () => {
       }
 
       // Update last active timestamp
-      await User.update(user.id, { last_active: new Date() });
+      await User.update(user.id, { last_login: new Date() });
 
       // Attach user to request
       req.user = user;
