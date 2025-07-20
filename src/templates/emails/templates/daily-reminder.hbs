@@ -1,0 +1,26 @@
+<h2>Time for your daily vocabulary review! 🎯</h2>
+
+<p>Hi {{userName}},</p>
+
+<p>You have <strong>{{pendingWords}} words</strong> ready for review today. Keep your {{currentStreak}}-day streak going!</p>
+
+{{#if streakMilestone}}
+<div style="background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 16px; border-radius: 4px; margin: 20px 0;">
+    🎉 <strong>Congratulations!</strong> You're just {{daysToMilestone}} days away from reaching a {{nextMilestone}}-day streak!
+</div>
+{{/if}}
+
+<h3 style="font-size: 18px; margin: 30px 0 15px 0;">Today's Statistics:</h3>
+<ul style="line-height: 1.8;">
+    <li>📚 Words to review: {{pendingWords}}</li>
+    <li>🔥 Current streak: {{currentStreak}} days</li>
+    <li>✅ Total words learned: {{totalWordsLearned}}</li>
+</ul>
+
+{{> button url=reviewUrl text="Start Today's Review"}}
+
+{{#if motivationalQuote}}
+<div style="font-style: italic; color: #666666; margin-top: 30px; padding: 20px; border-left: 4px solid #4CAF50;">
+    "{{motivationalQuote}}"
+</div>
+{{/if}}

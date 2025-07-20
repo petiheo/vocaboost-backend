@@ -1,0 +1,18 @@
+<h2>Welcome to VocaBoost! 🎉</h2>
+
+<p>Hi there!</p>
+
+<p>Thank you for signing up. You're just one step away from starting your vocabulary learning journey!</p>
+
+<p>Please verify your email address by clicking the button below:</p>
+
+{{> button url=verificationUrl text="Verify Email Address"}}
+
+<div class="warning-box">
+    <strong>⏰ Note:</strong> This verification link will expire in 24 hours.
+</div>
+
+<p style="font-size: 14px; color: #666666; margin-top: 30px;">
+    If the button doesn't work, copy and paste this link into your browser:<br>
+    <a href="{{verificationUrl}}" style="color: #4CAF50; word-break: break-all;">{{verificationUrl}}</a>
+</p>

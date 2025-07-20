@@ -1,0 +1,29 @@
+<h2>You're invited to join a classroom! 🎓</h2>
+
+<p>Hi there,</p>
+
+<p><strong>{{teacherName}}</strong> has invited you to join their VocaBoost classroom:</p>
+
+<div style="background-color: #e3f2fd; padding: 25px; border-radius: 4px; margin: 20px 0; text-align: center;">
+    <h3 style="margin: 0 0 10px 0; color: #1976d2;">{{className}}</h3>
+    {{#if classDescription}}
+    <p style="margin: 0; color: #666666;">{{classDescription}}</p>
+    {{/if}}
+</div>
+
+<p>Join the classroom to:</p>
+<ul>
+    <li>Access curated vocabulary lists</li>
+    <li>Complete assignments and track progress</li>
+    <li>Learn alongside other students</li>
+</ul>
+
+{{> button url=joinUrl text="Join Classroom"}}
+
+<div class="warning-box">
+    <strong>Note:</strong> This invitation link will expire in 7 days.
+</div>
+
+<p style="font-size: 14px; color: #666666; margin-top: 30px;">
+    If you don't have a VocaBoost account yet, you'll be prompted to create one when you click the link above.
+</p>

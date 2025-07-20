@@ -1,0 +1,36 @@
+<h2>Teacher Verification Update</h2>
+
+<p>Hi {{displayName}},</p>
+
+<p>Thank you for submitting your teacher verification request. After careful review, we were unable to approve your request at this time.</p>
+
+<div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 20px; border-radius: 4px; margin: 20px 0;">
+    <p style="margin: 0; font-weight: 600;">📋 Reason for rejection:</p>
+    <p style="margin: 10px 0 0 0; color: #856404;">{{rejectionReason}}</p>
+</div>
+
+<h3 style="color: #333333; font-size: 18px; margin: 30px 0 20px 0;">What you can do:</h3>
+
+<ul style="line-height: 1.8; padding-left: 20px;">
+    <li>Review the rejection reason above</li>
+    <li>Ensure your documentation clearly shows your teaching credentials</li>
+    <li>Submit a new verification request after 24 hours</li>
+</ul>
+
+<p style="margin-top: 20px;">
+    Common reasons for rejection include:
+</p>
+<ul style="line-height: 1.8; padding-left: 20px; color: #666666;">
+    <li>Unclear or incomplete documentation</li>
+    <li>Documents that don't clearly show teaching credentials</li>
+    <li>School email doesn't match the institution name</li>
+    <li>Expired or outdated credentials</li>
+</ul>
+
+{{> button url=resubmitUrl text="Submit New Request"}}
+
+<p style="margin-top: 30px;">
+    If you believe this decision was made in error or need assistance, please <a href="{{supportUrl}}" style="color: #4CAF50;">contact our support team</a>.
+</p>
+
+<p>You can continue using VocaBoost as a learner while we review any new verification requests.</p>

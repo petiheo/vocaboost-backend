@@ -1,0 +1,15 @@
+<div class='email-footer'>
+  <p>© {{currentYear}} VocaBoost. All rights reserved.</p>
+  <p>This is an automated message, please do not reply to this email.</p>
+
+  {{#if unsubscribeUrl}}
+    <p>
+      <a
+        href='{{unsubscribeUrl}}'
+        style='color: #666666; text-decoration: underline;'
+      >
+        Unsubscribe from these emails
+      </a>
+    </p>
+  {{/if}}
+</div>

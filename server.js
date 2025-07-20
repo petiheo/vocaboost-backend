@@ -1,10 +1,7 @@
 require('dotenv').config();
-const app = require('./src/app');
+const PORT = process.env.PORT;
 
-const PORT = process.env.PORT || 3000;
-
-// Start server
+app = require('./src/app');
 app.listen(PORT, () => {
-    console.log(`VocaBoost Backend running on port ${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV}`);
+  console.log(`URL of app: http://127.0.0.1:${PORT}/`);
 });

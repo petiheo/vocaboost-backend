@@ -1,0 +1,26 @@
+<h2>🏆 Achievement Unlocked!</h2>
+
+<p>Congratulations {{userName}}!</p>
+
+<p>You've just unlocked a new achievement:</p>
+
+<div style="text-align: center; margin: 30px 0;">
+    {{#if achievementIcon}}
+    <div style="font-size: 64px; margin-bottom: 20px;">{{achievementIcon}}</div>
+    {{/if}}
+    <h3 style="color: #4CAF50; font-size: 24px; margin: 0;">{{achievementTitle}}</h3>
+    <p style="color: #666666; margin-top: 10px;">{{achievementDescription}}</p>
+</div>
+
+{{#if stats}}
+<div style="background-color: #f8f9fa; padding: 20px; border-radius: 4px; margin: 20px 0;">
+    <h4 style="margin: 0 0 15px 0;">Your Progress:</h4>
+    <ul style="margin: 0; padding-left: 20px;">
+        {{#each stats}}
+        <li>{{this.label}}: <strong>{{this.value}}</strong></li>
+        {{/each}}
+    </ul>
+</div>
+{{/if}}
+
+{{> button url=profileUrl text="View All Achievements"}}

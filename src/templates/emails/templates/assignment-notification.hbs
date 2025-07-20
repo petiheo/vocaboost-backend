@@ -1,0 +1,21 @@
+<h2>New Assignment: {{assignmentTitle}} 📚</h2>
+
+<p>Hi {{studentName}},</p>
+
+<p>Your teacher <strong>{{teacherName}}</strong> has assigned you a new vocabulary exercise in the class <strong>{{className}}</strong>.</p>
+
+<div style="background-color: #f8f9fa; padding: 20px; border-radius: 4px; margin: 20px 0;">
+    <h3 style="margin: 0 0 10px 0; font-size: 18px;">Assignment Details:</h3>
+    <ul style="margin: 10px 0; padding-left: 20px;">
+        <li><strong>Title:</strong> {{assignmentTitle}}</li>
+        <li><strong>Words to learn:</strong> {{wordCount}} words</li>
+        <li><strong>Exercise type:</strong> {{exerciseType}}</li>
+        <li><strong>Due date:</strong> {{formatDate dueDate}}</li>
+    </ul>
+</div>
+
+{{> button url=assignmentUrl text="Start Assignment"}}
+
+<p style="font-size: 14px; color: #666666;">
+    Good luck with your learning! Remember, consistency is key. 🌟
+</p>
