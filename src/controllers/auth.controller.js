@@ -298,6 +298,36 @@ class AuthController {
       });
     }
   }
+
+  async getAccountStatus(req, res) {
+    try {
+      const { email } = req.body;
+      const userData = await authService.findUserByEmail(email);
+
+      if (!userData) {
+        return res.status(404).json({
+          success: false,
+          message: 'Email not found',
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          email: email,
+          emailVerified: userData.email_verified,
+          accountStatus: userData.account_status,
+        },
+      });
+    } catch (error) {
+      console.error('Get account status error: ', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+      });
+    }
+  }
+
 }
 
 module.exports = new AuthController();

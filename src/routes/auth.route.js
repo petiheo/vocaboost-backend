@@ -58,4 +58,11 @@ authRouter.post(
   authController.resendVerification
 );
 
+authRouter.post(
+  '/get-account-status',
+  rateLimiter,
+  authValidators.email,
+  authController.getAccountStatus
+);
+
 module.exports = authRouter;
